@@ -13,6 +13,20 @@ import baxter_interface
 
 from baxter_interface import CHECK_VERSION
 
+from core.internal_repr.action import Action
+from core.internal_repr.parameter import Object, Symbol
+from core.internal_repr.plan import Plan
+from core.internal_repr.predicate import Predicate
+from core.util_classes.baxter_predicates import *
+from core.util_classes.box import Box
+from core.util_classes.can import Can, BlueCan, RedCan, GreenCan
+from core.util_classes.circle import Circle
+from core.util_classes.common_predicates import *
+from core.util_classes.robots import Baxter
+from core.util_classes.robot_predicates import *
+from core.util_classes.table import Table
+from core.util_classes.wall import Wall
+
 class PlanReceiver(object):
 	def listen_for_plans(self):
 		rospy.init_node('plan_receiver')
@@ -27,55 +41,54 @@ class PlanReceiver(object):
 				pub.publish("Failed plan predicates: {0}", str(failed_preds))
 				return
 			for action in plan.actions:
-				failed_action_preds = self._check_preds(action.preds):
+				failed_action_preds = self._check_preds(action.preds)
 				if failed_action_preds:
 					pub.publishstr("Failed action {0}. Failed preds: {1}", action.name, failed_action_preds)
 					return
 				self._execute_action(action)
 
 
-
 	def _build_plan(self, data):
 		env = Environment()
-		params = []
+		params = {}
 		for param in data.params:
-			params.append(_build_param(param))
+			new_param = _build_param(param)
+			params[new_param.name] = new_param
 
 		actions = []
 		for action in data.actions:
-			actions.append(_build_action(action, env))
+			actions.append(_build_action(action, params, env))
+
+		return Plan(params.values(), actions, data.horizon, env)
 
 
-		return Plan(params, actions, data.horizon, env)
-
-	def _build_action(self, data, env):
+	def _build_action(self, data, params, env):
 		params = []
 		for param in data.params:
-			params.append(_build_param(param))
+			params.append(params[param])
 
 		preds = []
 		for pred in data.preds:
-			if _pred_is_expr(pred):
-				preds.append(_build_pred(pred, env))
+			preds.append(_build_pred(pred, env))
 
 		return Action(data.step_num, data.name, data.active_timesteps, params, preds)
 
-	def _pred_is_expr(self, pred):
-		pred_class = eval(pred.type)
-		return issubclass(pred_class, ExprPredicate)
 
 	def _build_pred(self, data, env):
-		pred_class = eval(data.type)
+		pred_class = eval(data.type_name)
 		params = []
 		for param in data.params:
 			params.append(_build_param(param))
 		return pred_class(data.name, params, data.param_types, env)
+
 
 	def _build_param(self, data):
 		if data.is_symbol:
 			new_param = Object()
 		else:
 			new_param = Symbol()
+
+		new_param.type = data.type_name
 
 		if hasattr(data, 'lArmPose'):
 			new_param.lArmPose = self._float_array_to_numpy(data.lArmPose)
@@ -94,8 +107,11 @@ class PlanReceiver(object):
 		if hasattr(data, 'geom'):
 			new_param.geom = self_build_geom(data.geom)
 
+		return new_param
+
+
 	def _build_geom(self, data):
-		geom_class = eval(data.type)
+		geom_class = eval(data.type_name)
 		attrs = map(lambda attr: {attr.split(":")[0] : attr.split(":")[1]}, data.attrs.split(","))
 
 		if issubclass(geom_class, Can):
@@ -124,118 +140,128 @@ class PlanReceiver(object):
 			new_array.append(row.data)
 		return np.array(new_array)
 
+
 	def _check_preds(self, preds):
-		pass
+		failed_preds = []
+		for pred in preds:
+			if not pred.test():
+				failed_preds.append(pred)
+		return failed_preds
 
 
 	def _execute_action(self, action):
 		def get_joint_positions(limb, pos, i):
-	        return {limb + "_s0": pos[0][i], limb + "_s1": pos[1][i], limb + "_e0": pos[2][i], limb + "_e1": pos[3][i], limb + "_w0": pos[4][i], limb + "_w1": pos[5][i], limb + "_w2": pos[6][i]}
+			return {limb + "_s0": pos[0][i], limb + "_s1": pos[1][i], limb + "_e0": pos[2][i], limb + "_e1": pos[3][i], limb + "_w0": pos[4][i], limb + "_w1": pos[5][i], limb + "_w2": pos[6][i]}
 
-	    baxter = None
-	    for param in action.params:
-	    	if param.name == 'baxter':
-	    		baxter = param
+		baxter = None
+		for param in action.params:
+			if param.name == 'baxter':
+				baxter = param
 
-	    if not baxter:
-	    	raise Exception("Baxter not found for action: %s" % action.name)
+		if not baxter:
+			raise Exception("Baxter not found for action: %s" % action.name)
 
-	    l_arm_pos = baxter.lArmPose
-	    l_gripper = baxter.lGripper[0]
-	    r_arm_pos = baxter.rArmPose
-	    r_gripper = baxter.rGripper[0]
+		l_arm_pos = baxter.lArmPose
+		l_gripper = baxter.lGripper[0]
+		r_arm_pos = baxter.rArmPose
+		r_gripper = baxter.rGripper[0]
 
-	    print("Initializing node... ")
-	    rospy.init_node("rsdk_joint_trajectory_client")
-	    print("Getting robot state... ")
-	    rs = baxter_interface.RobotEnable(CHECK_VERSION)
-	    init_state = rs.state().enabled
+		print("Initializing node... ")
+		rospy.init_node("rsdk_joint_trajectory_client")
+		print("Getting robot state... ")
+		rs = baxter_interface.RobotEnable(CHECK_VERSION)
+		init_state = rs.state().enabled
 
-	    def clean_shutdown():
-	        print("\nExiting example...")
-	        if not init_state:
-	            print("Disabling robot...")
-	            rs.disable()
-	    rospy.on_shutdown(clean_shutdown)
-	    
-	    print("Enabling robot... ")
-	    rs.enable()
-	    print("Running. Ctrl-c to quit")
+		def clean_shutdown():
+			print("\nExiting example...")
+			if not init_state:
+				print("Disabling robot...")
+				rs.disable()
+		rospy.on_shutdown(clean_shutdown)
 
-	    left = baxter_interface.limb.Limb("left")
-	    right = baxter_interface.limb.Limb("right")
-	    grip_left = baxter_interface.Gripper('left', CHECK_VERSION)
-	    grip_right = baxter_interface.Gripper('right', CHECK_VERSION)
+		print("Enabling robot... ")
+		rs.enable()
+		print("Running. Ctrl-c to quit")
 
-	    left_queue = Queue.Queue()
-	    right_queue = Queue.Queue()
-	    rate = rospy.Rate(1000)
+		left = baxter_interface.limb.Limb("left")
+		right = baxter_interface.limb.Limb("right")
+		grip_left = baxter_interface.Gripper('left', CHECK_VERSION)
+		grip_right = baxter_interface.Gripper('right', CHECK_VERSION)
 
-	    if grip_left.error():
-	        grip_left.reset()
-	    if grip_right.error():
-	        grip_right.reset()
-	    if (not grip_left.calibrated() and
-	        grip_left.type() != 'custom'):
-	        grip_left.calibrate()
-	    if (not grip_right.calibrated() and
-	        grip_right.type() != 'custom'):
-	        grip_right.calibrate()
+		left_queue = Queue.Queue()
+		right_queue = Queue.Queue()
+		rate = rospy.Rate(1000)
 
-	    left.move_to_joint_positions(get_joint_positions("left", l_arm_pos, 0))
-	    right.move_to_joint_positions(get_joint_positions("right", r_arm_pos, 0))
+		if grip_left.error():
+			grip_left.reset()
+		if grip_right.error():
+			grip_right.reset()
+		if (not grip_left.calibrated() and
+			grip_left.type() != 'custom'):
+			grip_left.calibrate()
+		if (not grip_right.calibrated() and
+			grip_right.type() != 'custom'):
+			grip_right.calibrate()
+
+		left.move_to_joint_positions(get_joint_positions("left", l_arm_pos, 0))
+		right.move_to_joint_positions(get_joint_positions("right", r_arm_pos, 0))
 
 
-	    def move_thread(limb, gripper, angle, grip, queue, timeout=15.0):
-	            """
-	            Threaded joint movement allowing for simultaneous joint moves.
-	            """
-	            try:
-	                limb.move_to_joint_positions(angle, timeout)
-	                gripper.command_position(grip)
-	                queue.put(None)
-	            except Exception, exception:
-	                queue.put(traceback.format_exc())
-	                queue.put(exception)
+		def move_thread(limb, gripper, angle, grip, queue, timeout=15.0):
+				"""
+				Threaded joint movement allowing for simultaneous joint moves.
+		        """
+				try:
+					limb.move_to_joint_positions(angle, timeout)
+					gripper.command_position(grip)
+					queue.put(None)
+				except Exception, exception:
+					queue.put(traceback.format_exc())
+					queue.put(exception)
 
-	    for i in range(0, len(l_gripper)):
+		for i in range(0, len(l_gripper)):
 
-	        left_thread = threading.Thread(
-	            target=move_thread,
-	            args=(left,
-	                  grip_left,
-	                  get_joint_positions("left", l_arm_pos, i),
-	                  l_gripper[i],
-	                  left_queue
-	                  )
-	        )
-	        right_thread = threading.Thread(
-	            target=move_thread,
-	            args=(right,
-	                  grip_right,
-	                  get_joint_positions("right", r_arm_pos, i),
-	                  r_gripper[i],
-	                  right_queue
-	                  )
-	        )
+			left_thread = threading.Thread(
+				target=move_thread,
+				args=(left,
+					grip_left,
+					get_joint_positions("left", l_arm_pos, i),
+					l_gripper[i],
+					left_queue
+					)
+			)
+			right_thread = threading.Thread(
+				target=move_thread,
+				args=(right,
+				grip_right,
+				get_joint_positions("right", r_arm_pos, i),
+				r_gripper[i],
+				right_queue
+				)
+			)
 
-	        left_thread.daemon = True
-	        right_thread.daemon = True
-	        left_thread.start()
-	        right_thread.start()
-	        baxter_dataflow.wait_for(
-	            lambda: not (left_thread.is_alive() or
-	                         right_thread.is_alive()),
-	            timeout=20.0,
-	            timeout_msg=("Timeout while waiting for arm move threads"
-	                         " to finish"),
-	            rate=10,
-	        )
-	        left_thread.join()
-	        right_thread.join()
-	        result = left_queue.get()
-	        if not result is None:
-	            raise left_queue.get()
-	        result = right_queue.get()
-	        if not result is None:
-	            raise right_queue.get()
+			left_thread.daemon = True
+			right_thread.daemon = True
+			left_thread.start()
+			right_thread.start()
+			baxter_dataflow.wait_for(
+				lambda: not (left_thread.is_alive() or right_thread.is_alive()),
+				timeout=20.0,
+				timeout_msg=("Timeout while waiting for arm move threads to finish"),
+				rate=10,
+			)
+			left_thread.join()
+			right_thread.join()
+			result = left_queue.get()
+			if not result is None:
+				raise left_queue.get()
+			result = right_queue.get()
+			if not result is None:
+				raise right_queue.get()
+
+def receive_plan():
+	pr = PlanReceiver()
+	pr.listen_for_plans()
+
+if __name__ == "__main__":
+	receive_plan()
