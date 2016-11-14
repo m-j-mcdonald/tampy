@@ -3,20 +3,20 @@ import numpy as np
 import rospy
 from std_msgs.msg import String
 
-from _ActionMSG import ActionMSG
-from _FloatArrayMSG import FloatArrayMSG
-from _GeomMSG import GeomMSG
-from _ParameterMSG import ParameterMSG
-from _PlanMSG import PlanMSG
-from _PredicateMSG import PredicateMSG
+from baxter_plan.msg import ActionMSG
+from baxter_plan.msg import FloatArrayMSG
+from baxter_plan.msg import GeomMSG
+from baxter_plan.msg import ParameterMSG
+from baxter_plan.msg import PlanMSG
+from baxter_plan.msg import PredicateMSG
 
 class PlanPublisher(object):
 	def publish_plan(self, plan):
 		pub = rospy.Publisher('Plan', PlanMSG, queue_size=10)
-		pub2 = rospy.Publisher('test', String, queue_size=10)
+		pub2 = rospy.Publisher('test', ActionMSG, queue_size=10)
 		rospy.init_node('planner', anonymous=True)
 		msg = self.create_plan_msg(plan)
-		pub2.publish("Once upon a midnight dreary")
+		pub2.publish(self.create_action_msg(plan.actions[0]))
 		pub.publish(msg)
 
 	def create_floatarray_msg(self, array):
@@ -27,13 +27,16 @@ class PlanPublisher(object):
 	def create_geom_msg(self, geom):
 		geom_msg = GeomMSG()
 		geom_msg.type_name = str(type(geom)).split("'")[1].split(".")[-1]
-		geom_msg.attrs = str(geom.__dict__)
+		attr_dict = {k:v for k,v in geom.__dict__.iteritems() if type(v) is float or type(v) is str}
+		geom_msg.attrs = str(attr_dict)[1:-1]
 		return geom_msg
 
 	def create_parameter_msg(self, param):
 		param_msg = ParameterMSG()
 		param_msg.type_name = param.get_type()
 		param_msg.is_symbol = param.is_symbol()
+		if hasattr(param, 'name') and type(param.name) is str:
+			param_msg.name = param.name
 		if hasattr(param, 'lArmPose') and type(param.lArmPose) is np.ndarray:
 			for joint in param.lArmPose:
 				param_msg.lArmPose.append(self.create_floatarray_msg(joint))
@@ -73,7 +76,7 @@ class PlanPublisher(object):
 		action_msg.name = action.name
 		action_msg.active_timesteps = action.active_timesteps
 		for param in action.params:
-			action_msg.parameters.append(self.create_parameter_msg(param))
+			action_msg.parameters.append(param.name)
 		for pred in action.preds:
 			action_msg.predicates.append(self.create_predicate_msg(pred['pred']))
 		return action_msg

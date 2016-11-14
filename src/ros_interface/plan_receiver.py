@@ -1,10 +1,14 @@
+#!/usr/bin/env python
+
 import argparse
 import sys
 import threading
 import Queue
 
 import numpy as np
+
 import rospy
+from std_msgs.msg import String
 
 import actionlib
 
@@ -27,13 +31,15 @@ from core.util_classes.robot_predicates import *
 from core.util_classes.table import Table
 from core.util_classes.wall import Wall
 
+from baxter_plan.msg import ActionMSG
+from baxter_plan.msg import FloatArrayMSG
+from baxter_plan.msg import GeomMSG
+from baxter_plan.msg import ParameterMSG
+from baxter_plan.msg import PlanMSG
+from baxter_plan.msg import PredicateMSG
+
 class PlanReceiver(object):
 	def listen_for_plans(self):
-		rospy.init_node('plan_receiver')
-		rospy.Subscriber('Plan', PlanMsg, _execute_plan)
-		pub = rospy.publisher('Failed Predicates', String)
-		rospy.spin()
-
 		def _execute_plan(data):
 			plan = self._build_plan(data)
 			failed_preds = self._check_preds(plan.preds)
@@ -47,29 +53,35 @@ class PlanReceiver(object):
 					return
 				self._execute_action(action)
 
+		rospy.init_node('plan_receiver')
+		rospy.Subscriber('Plan', PlanMSG, _execute_plan)
+		pub = rospy.Publisher('Failed_Predicates', String, queue_size=10)
+		rospy.spin()
+
 
 	def _build_plan(self, data):
+		print "Building plan."
 		env = Environment()
 		params = {}
-		for param in data.params:
-			new_param = _build_param(param)
+		for param in data.parameters:
+			new_param = self._build_param(param)
 			params[new_param.name] = new_param
 
 		actions = []
 		for action in data.actions:
-			actions.append(_build_action(action, params, env))
+			actions.append(self._build_action(action, params, env))
 
 		return Plan(params.values(), actions, data.horizon, env)
 
 
-	def _build_action(self, data, params, env):
+	def _build_action(self, data, plan_params, env):
 		params = []
-		for param in data.params:
-			params.append(params[param])
+		for param in data.parameters:
+			params.append(plan_params[param])
 
 		preds = []
-		for pred in data.preds:
-			preds.append(_build_pred(pred, env))
+		for pred in data.predicates:
+			preds.append(self._build_pred(pred, env))
 
 		return Action(data.step_num, data.name, data.active_timesteps, params, preds)
 
@@ -78,7 +90,7 @@ class PlanReceiver(object):
 		pred_class = eval(data.type_name)
 		params = []
 		for param in data.params:
-			params.append(_build_param(param))
+			params.append(self._build_param(param))
 		return pred_class(data.name, params, data.param_types, env)
 
 
@@ -88,46 +100,54 @@ class PlanReceiver(object):
 		else:
 			new_param = Symbol()
 
-		new_param.type = data.type_name
-
-		if hasattr(data, 'lArmPose'):
+		new_param._type = data.type_name
+		new_param.name = data.name
+		
+		if data.lArmPose != []:
 			new_param.lArmPose = self._float_array_to_numpy(data.lArmPose)
-		if hasattr(data, 'rArmPose'):
+		if data.rArmPose != []:
 			new_param.rArmPose = self._float_array_to_numpy(data.rArmPose)
-		if hasattr(data, 'lGripper'):
+		if data.lGripper != []:
 			new_param.lGripper = self._float_array_to_numpy(data.lGripper)
-		if hasattr(data, 'rGripper'):
+		if data.rGripper != []:
 			new_param.rGripper = self._float_array_to_numpy(data.rGripper)
-		if hasattr(data, 'pose'):
+		if data.pose != []:
 			new_param.pose = self._float_array_to_numpy(data.pose)
-		if hasattr(data, 'value'):
+		if data.value != []:
 			new_param.value = self._float_array_to_numpy(data.value)
-		if hasattr(data, 'rotation'):
+		if data.rotation != []:
 			new_param.rotation = self._float_array_to_numpy(data.rotation)
-		if hasattr(data, 'geom'):
-			new_param.geom = self_build_geom(data.geom)
+		if data.geom.type_name != '':
+			new_param.geom = self._build_geom(data.geom)
 
 		return new_param
 
 
 	def _build_geom(self, data):
 		geom_class = eval(data.type_name)
-		attrs = map(lambda attr: {attr.split(":")[0] : attr.split(":")[1]}, data.attrs.split(","))
+		attrs = {}
+		for attr in data.attrs.split(", "):
+			attrs[attr.split(": ")[0]] = attr.split(": ")[1]
 
 		if issubclass(geom_class, Can):
-			radius = int(attrs['radius'])
-			height = int(attrs['height'])
+			radius = float(attrs["'radius'"])
+			height = float(attrs["'height'"])
 			return geom_class(radius, height)
-		elif geom_class is BaxterGeom:
-			return geom_class()
-		elif geom_class is Box or geom_class is Table:
-			dim = int(attrs['dim'])
+		elif geom_class is Baxter:
+			geometry = geom_class()
+			geometry.shape = "/home/michael/robot_work/tampy/models/baxter/baxter.xml"
+			return geometry
+		elif geom_class is Box:
+			dim = [float(attrs["'length'"]), float(attrs["'height'"]), float(attrs["'width'"])]
+			return geom_class(dim)
+		elif geom_class is Table:
+			raise Exception("Yeah, fix this")
 			return geom_class(dim)
 		elif issubclass(geom_class, Circle):
-			radius = int(attrs['radius'])
+			radius = float(attrs["'radius'"])
 			return geom_class(radius)
 		elif geom_class is Wall:
-			wall_type = attrs['wall_type']
+			wall_type = attrs["'wall_type'"]
 			return geom_class(wall_type)
 
 		return None
