@@ -26,6 +26,7 @@ from core.util_classes.box import Box
 from core.util_classes.can import Can, BlueCan, RedCan, GreenCan
 from core.util_classes.circle import Circle
 from core.util_classes.common_predicates import *
+from core.util_classes.matrix import *
 from core.util_classes.robots import Baxter
 from core.util_classes.robot_predicates import *
 from core.util_classes.table import Table
@@ -42,14 +43,10 @@ class PlanReceiver(object):
 	def listen_for_plans(self):
 		def _execute_plan(data):
 			plan = self._build_plan(data)
-			failed_preds = self._check_preds(plan.preds)
-			if failed_preds:
-				pub.publish("Failed plan predicates: {0}", str(failed_preds))
-				return
 			for action in plan.actions:
-				failed_action_preds = self._check_preds(action.preds)
+				failed_action_preds = action.get_failed_preds()
 				if failed_action_preds:
-					pub.publishstr("Failed action {0}. Failed preds: {1}", action.name, failed_action_preds)
+					pub.publish("Failed action {0}. Failed preds: {1}".format(action.name, str(failed_action_preds)))
 					return
 				self._execute_action(action)
 
@@ -71,7 +68,7 @@ class PlanReceiver(object):
 		for action in data.actions:
 			actions.append(self._build_action(action, params, env))
 
-		return Plan(params.values(), actions, data.horizon, env)
+		return Plan(params, actions, data.horizon, env)
 
 
 	def _build_action(self, data, plan_params, env):
@@ -81,44 +78,105 @@ class PlanReceiver(object):
 
 		preds = []
 		for pred in data.predicates:
-			preds.append(self._build_pred(pred, env))
+			preds.append(self._build_actionpred(pred, plan_params, env))
 
 		return Action(data.step_num, data.name, data.active_timesteps, params, preds)
 
 
-	def _build_pred(self, data, env):
+	def _build_actionpred(self, data, plan_params, env):
+		actionpred = {}
+		actionpred['negated'] = data.negated
+		actionpred['hl_info'] = data.hl_info
+		actionpred['pred'] = self._build_pred(data.pred, plan_params, env)
+		actionpred['active_timesteps'] = (data.active_timesteps[0], data.active_timesteps[1])
+		return actionpred
+
+
+	def _build_pred(self, data, plan_params, env):
 		pred_class = eval(data.type_name)
 		params = []
 		for param in data.params:
-			params.append(self._build_param(param))
+			if param.name in plan_params.keys():
+				params.append(plan_params[param.name])
+			else:
+				params.append(self._build_param(param))
 		return pred_class(data.name, params, data.param_types, env)
 
 
 	def _build_param(self, data):
-		if data.is_symbol:
-			new_param = Object()
+		attr_types = {}
+
+		attr_types['_type'] = str
+		attr_types['name'] = str
+
+		if data.geom.type_name != '':
+			attr_types['geom'] = eval(data.geom.type_name)
+
+		if data.type_name == 'Robot':
+			attr_types['pose'] = Vector1d
+			attr_types['lArmPose'] = ArmPose7d
+			attr_types['lGripper'] = Vector1d
+			attr_types['rArmPose'] = ArmPose7d
+			attr_types['rGripper'] = Vector1d
+		elif data.type_name == "RobotPose":
+			attr_types['value'] = Vector1d
+			attr_types['lArmPose'] = ArmPose7d
+			attr_types['lGripper'] = Vector1d
+			attr_types['rArmPose'] = ArmPose7d
+			attr_types['rGripper'] = Vector1d
+		elif data.type_name == 'Can':
+			attr_types['pose'] = Vector3d
+			attr_types['rotation'] = Vector3d
+		elif data.type_name == 'Obstacle':
+			attr_types['pose'] = Vector3d
+			attr_types['rotation'] = Vector3d
+		elif data.type_name == 'EEPose':
+			attr_types['value'] = Vector3d
+			attr_types['rotation'] = Vector3d
+		elif data.type_name == 'Target':
+			attr_types['value'] = Vector3d
+			attr_types['rotation'] = Vector3d
 		else:
-			new_param = Symbol()
+			raise Exception("Missing something in plan_receiver _build_param.")
+
+		if data.is_symbol:
+			new_param = Symbol(attr_types=attr_types)
+		else:
+			new_param = Object(attr_types=attr_types)
 
 		new_param._type = data.type_name
 		new_param.name = data.name
-		
-		if data.lArmPose != []:
-			new_param.lArmPose = self._float_array_to_numpy(data.lArmPose)
-		if data.rArmPose != []:
-			new_param.rArmPose = self._float_array_to_numpy(data.rArmPose)
-		if data.lGripper != []:
-			new_param.lGripper = self._float_array_to_numpy(data.lGripper)
-		if data.rGripper != []:
-			new_param.rGripper = self._float_array_to_numpy(data.rGripper)
-		if data.pose != []:
-			new_param.pose = self._float_array_to_numpy(data.pose)
-		if data.value != []:
-			new_param.value = self._float_array_to_numpy(data.value)
-		if data.rotation != []:
-			new_param.rotation = self._float_array_to_numpy(data.rotation)
+
 		if data.geom.type_name != '':
 			new_param.geom = self._build_geom(data.geom)
+
+		if data.type_name == 'Robot':
+			new_param.lArmPose = self._float_array_to_numpy(data.lArmPose)
+			new_param.lGripper = self._float_array_to_numpy(data.lGripper)
+			new_param.rArmPose = self._float_array_to_numpy(data.rArmPose)
+			new_param.rGripper = self._float_array_to_numpy(data.rGripper)
+			new_param.pose = self._float_array_to_numpy(data.pose)
+		elif data.type_name == "RobotPose":
+			new_param.lArmPose = self._float_array_to_numpy(data.lArmPose)
+			new_param.lGripper = self._float_array_to_numpy(data.lGripper)
+			new_param.rArmPose = self._float_array_to_numpy(data.rArmPose)
+			new_param.rGripper = self._float_array_to_numpy(data.rGripper)
+			new_param.value = self._float_array_to_numpy(data.value)
+		elif data.type_name == 'Can':
+			new_param.rotation = self._float_array_to_numpy(data.rotation)
+			new_param.pose = self._float_array_to_numpy(data.pose)
+		elif data.type_name == 'Obstacle':
+			new_param.rotation = self._float_array_to_numpy(data.rotation)
+			new_param.pose = self._float_array_to_numpy(data.pose)
+		elif data.type_name == 'EEPose':
+			new_param.rotation = self._float_array_to_numpy(data.rotation)
+			new_param.value = self._float_array_to_numpy(data.value)
+		elif data.type_name == 'Target':
+			new_param.rotation = self._float_array_to_numpy(data.rotation)
+			new_param.value = self._float_array_to_numpy(data.value)
+
+		for attr in data.undefined_attrs:
+			setattr(new_param, attr, 'undefined')
 
 		return new_param
 
@@ -127,7 +185,8 @@ class PlanReceiver(object):
 		geom_class = eval(data.type_name)
 		attrs = {}
 		for attr in data.attrs.split(", "):
-			attrs[attr.split(": ")[0]] = attr.split(": ")[1]
+			attr = attr.split(": ")
+			attrs[attr[0]] = attr[1]
 
 		if issubclass(geom_class, Can):
 			radius = float(attrs["'radius'"])
@@ -135,14 +194,14 @@ class PlanReceiver(object):
 			return geom_class(radius, height)
 		elif geom_class is Baxter:
 			geometry = geom_class()
+			# Fix this
 			geometry.shape = "/home/michael/robot_work/tampy/models/baxter/baxter.xml"
 			return geometry
 		elif geom_class is Box:
 			dim = [float(attrs["'length'"]), float(attrs["'height'"]), float(attrs["'width'"])]
 			return geom_class(dim)
 		elif geom_class is Table:
-			raise Exception("Yeah, fix this")
-			return geom_class(dim)
+			raise Exception("Yeah, fix this. It's in _build_geom of plan_receiver.")
 		elif issubclass(geom_class, Circle):
 			radius = float(attrs["'radius'"])
 			return geom_class(radius)
@@ -150,8 +209,7 @@ class PlanReceiver(object):
 			wall_type = attrs["'wall_type'"]
 			return geom_class(wall_type)
 
-		return None
-
+		raise Exception('Geometry {0} not implemented yet.', data.type_name)
 
 
 	def _float_array_to_numpy(self, float_array_msg):
@@ -159,14 +217,6 @@ class PlanReceiver(object):
 		for row in float_array_msg:
 			new_array.append(row.data)
 		return np.array(new_array)
-
-
-	def _check_preds(self, preds):
-		failed_preds = []
-		for pred in preds:
-			if not pred.test():
-				failed_preds.append(pred)
-		return failed_preds
 
 
 	def _execute_action(self, action):
