@@ -24,7 +24,7 @@ from core.internal_repr.predicate import Predicate
 from core.util_classes.baxter_predicates import *
 from core.util_classes.box import Box
 from core.util_classes.can import Can, BlueCan, RedCan, GreenCan
-from core.util_classes.circle import Circle
+from core.util_classes.circle import Circle, BlueCircle, RedCircle, GreenCircle
 from core.util_classes.common_predicates import *
 from core.util_classes.matrix import *
 from core.util_classes.robots import Baxter
@@ -32,30 +32,26 @@ from core.util_classes.robot_predicates import *
 from core.util_classes.table import Table
 from core.util_classes.wall import Wall
 
-from baxter_plan.msg import ActionMSG
-from baxter_plan.msg import FloatArrayMSG
-from baxter_plan.msg import GeomMSG
-from baxter_plan.msg import ParameterMSG
-from baxter_plan.msg import PlanMSG
-from baxter_plan.msg import PredicateMSG
+from baxter_plan.msg import ActionMSG, FloatArrayMSG, GeomMSG, ParameterMSG, PlanMSG, PredicateMSG
+
+from baxter_plan import execute_action
 
 class PlanReceiver(object):
 	def listen_for_plans(self):
-		def _execute_plan(data):
+		rospy.init_node('plan_receiver')
+		rospy.Subscriber('Plan', PlanMSG, self._execute_plan)
+		rospy.spin()
+
+	def _execute_plan(self, data):
 			plan = self._build_plan(data)
+			pub = rospy.Publisher('Failed_Predicates', String, queue_size=10)
 			for action in plan.actions:
 				failed_action_preds = action.get_failed_preds()
 				if failed_action_preds:
 					pub.publish("Failed action {0}. Failed preds: {1}".format(action.name, str(failed_action_preds)))
-					return
-				self._execute_action(action)
-
-		rospy.init_node('plan_receiver')
-		rospy.Subscriber('Plan', PlanMSG, _execute_plan)
-		pub = rospy.Publisher('Failed_Predicates', String, queue_size=10)
-		rospy.spin()
-
-
+					# return
+				execute_action(action)
+	
 	def _build_plan(self, data):
 		print "Building plan."
 		env = Environment()
@@ -137,7 +133,7 @@ class PlanReceiver(object):
 			attr_types['value'] = Vector3d
 			attr_types['rotation'] = Vector3d
 		else:
-			raise Exception("Missing something in plan_receiver _build_param.")
+			raise Exception("Missing {0} in _build_param.".format(data.type_name))
 
 		if data.is_symbol:
 			new_param = Symbol(attr_types=attr_types)
@@ -151,29 +147,29 @@ class PlanReceiver(object):
 			new_param.geom = self._build_geom(data.geom)
 
 		if data.type_name == 'Robot':
-			new_param.lArmPose = self._float_array_to_numpy(data.lArmPose)
-			new_param.lGripper = self._float_array_to_numpy(data.lGripper)
-			new_param.rArmPose = self._float_array_to_numpy(data.rArmPose)
-			new_param.rGripper = self._float_array_to_numpy(data.rGripper)
-			new_param.pose = self._float_array_to_numpy(data.pose)
+			new_param.lArmPose = self._build_2D_numpy_array(data.lArmPose)
+			new_param.lGripper = self._build_2D_numpy_array(data.lGripper)
+			new_param.rArmPose = self._build_2D_numpy_array(data.rArmPose)
+			new_param.rGripper = self._build_2D_numpy_array(data.rGripper)
+			new_param.pose = self._build_2D_numpy_array(data.pose)
 		elif data.type_name == "RobotPose":
-			new_param.lArmPose = self._float_array_to_numpy(data.lArmPose)
-			new_param.lGripper = self._float_array_to_numpy(data.lGripper)
-			new_param.rArmPose = self._float_array_to_numpy(data.rArmPose)
-			new_param.rGripper = self._float_array_to_numpy(data.rGripper)
-			new_param.value = self._float_array_to_numpy(data.value)
+			new_param.lArmPose = self._build_2D_numpy_array(data.lArmPose)
+			new_param.lGripper = self._build_2D_numpy_array(data.lGripper)
+			new_param.rArmPose = self._build_2D_numpy_array(data.rArmPose)
+			new_param.rGripper = self._build_2D_numpy_array(data.rGripper)
+			new_param.value = self._build_2D_numpy_array(data.value)
 		elif data.type_name == 'Can':
-			new_param.rotation = self._float_array_to_numpy(data.rotation)
-			new_param.pose = self._float_array_to_numpy(data.pose)
+			new_param.rotation = self._build_2D_numpy_array(data.rotation)
+			new_param.pose = self._build_2D_numpy_array(data.pose)
 		elif data.type_name == 'Obstacle':
-			new_param.rotation = self._float_array_to_numpy(data.rotation)
-			new_param.pose = self._float_array_to_numpy(data.pose)
+			new_param.rotation = self._build_2D_numpy_array(data.rotation)
+			new_param.pose = self._build_2D_numpy_array(data.pose)
 		elif data.type_name == 'EEPose':
-			new_param.rotation = self._float_array_to_numpy(data.rotation)
-			new_param.value = self._float_array_to_numpy(data.value)
+			new_param.rotation = self._build_2D_numpy_array(data.rotation)
+			new_param.value = self._build_2D_numpy_array(data.value)
 		elif data.type_name == 'Target':
-			new_param.rotation = self._float_array_to_numpy(data.rotation)
-			new_param.value = self._float_array_to_numpy(data.value)
+			new_param.rotation = self._build_2D_numpy_array(data.rotation)
+			new_param.value = self._build_2D_numpy_array(data.value)
 
 		for attr in data.undefined_attrs:
 			setattr(new_param, attr, 'undefined')
@@ -209,12 +205,12 @@ class PlanReceiver(object):
 			wall_type = attrs["'wall_type'"]
 			return geom_class(wall_type)
 
-		raise Exception('Geometry {0} not implemented yet.', data.type_name)
+		raise Exception('Geometry {0} not implemented yet.'.format(data.type_name))
 
 
-	def _float_array_to_numpy(self, float_array_msg):
+	def _build_2D_numpy_array(self, float_array_msgs):
 		new_array = []
-		for row in float_array_msg:
+		for row in float_array_msgs:
 			new_array.append(row.data)
 		return np.array(new_array)
 
@@ -236,8 +232,6 @@ class PlanReceiver(object):
 		r_arm_pos = baxter.rArmPose
 		r_gripper = baxter.rGripper[0]
 
-		print("Initializing node... ")
-		rospy.init_node("rsdk_joint_trajectory_client")
 		print("Getting robot state... ")
 		rs = baxter_interface.RobotEnable(CHECK_VERSION)
 		init_state = rs.state().enabled
