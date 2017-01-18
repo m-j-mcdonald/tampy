@@ -58,6 +58,7 @@ class CollisionPredicate(ExprPredicate):
         assert robot_body.env_body.GetEnv() == obj_body.env_body.GetEnv()
         self.set_active_dof_inds(robot_body, reset=False)
         # Setup collision checkers
+        # print dir(self._cc)
         self._cc.SetContactDistance(MAX_CONTACT_DISTANCE)
         collisions = self._cc.BodyVsBody(robot_body.env_body, obj_body.env_body)
         # Calculate value and jacobian

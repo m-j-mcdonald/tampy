@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import json
 import numpy as np
 import unittest
 
@@ -47,14 +48,12 @@ class TestPlanPublisher(unittest.TestCase):
 		geom = Baxter()
 		geom_msg = self.plan_publisher.create_geom_msg(geom)
 		self.assertEqual(geom_msg.type_name, 'Baxter')
-		attr_str = str({k:v for k,v in geom.__dict__.iteritems() if type(v) is float or type(v) is str})[1:-1]
-		self.assertEqual(geom_msg.attrs, attr_str)
 		
 		geom = GreenCan(3.14, 1.23)
 		geom_msg = self.plan_publisher.create_geom_msg(geom)
 		self.assertEqual(geom_msg.type_name, 'GreenCan')
-		attr_str = str({k:v for k,v in geom.__dict__.iteritems() if type(v) is float or type(v) is str})[1:-1]
-		self.assertIn("'radius': 3.14", geom_msg.attrs)
+		attr_str = json.dumps(geom.__dict__)
+		self.assertIn('"radius": 3.14', geom_msg.attrs)
 
 
 	def test_create_floatarray_msg(self):
@@ -74,7 +73,7 @@ class TestPlanPublisher(unittest.TestCase):
 		self.assertFalse(param_msg.is_symbol)
 		self.assertIn('pose', param_msg.undefined_attrs)
 		self.assertEqual(param_msg.geom.type_name, 'GreenCan')
-		self.assertEqual(param_msg.geom.radius, .02)
+		self.assertIn('"radius": 0.02', param_msg.geom.attrs)
 
 
 	def test_create_predicate_msg(self):

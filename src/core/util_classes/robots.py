@@ -60,7 +60,7 @@ class Baxter(Robot):
       ikmodel = databases.inversekinematics.InverseKinematicsModel(robot, IkParameterizationType.Transform6D, True)
       if not ikmodel.load():
           print 'Something went wrong'
-        #   ikmodel.autogenerate()
+          # ikmodel.autogenerate()
 
       ikmodel.manip = robot.GetManipulator('right_arm')
       manip.SetIkSolver(ikmodel.iksolver)

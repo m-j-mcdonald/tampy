@@ -119,6 +119,11 @@ class OpenRAVEBody(object):
         self.env_body.SetName(self.name)
         self._env.Add(self.env_body)
 
+    def _add_trimesh(self, geom):
+        self.env_body = OpenRAVEBody.create_from_mesh(self._env, self.name, geom)
+        self.env_body.SetName(self.name)
+        self._env.Add(self.env_body)
+
     def set_pose(self, base_pose, rotation = None):
         trans = None
         if isinstance(self._geom, Circle) or isinstance(self._geom, Obstacle) or isinstance(self._geom, Wall):
@@ -278,6 +283,15 @@ class OpenRAVEBody(object):
         else:
             table.InitFromGeometries([tabletop, leg1, leg2, leg3, leg4, back_plate])
         return table
+
+    @staticmethod
+    def create_from_mesh(env, name, geom):
+        body = env.CreateKinBody()
+        mesh = geom.bounding_mesh
+        trimesh = KinBody.Link.TriMesh(mesh.vertices, mesh.indices)
+        body.InitFromTrimesh(trimesh=trimesh, draw=True)
+        body.SetName(name)
+        env.AddKinBody(body)
 
     @staticmethod
     def base_pose_2D_to_mat(pose):

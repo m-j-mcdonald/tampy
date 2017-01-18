@@ -49,16 +49,11 @@ class TestPlanReceiver(unittest.TestCase):
 		self.setup()
 		geom = Baxter()
 		geom_msg = self.plan_publisher.create_geom_msg(geom)
-		self.assertEqual(geom_msg.type_name, 'Baxter')
-		attr_str = str({k:v for k,v in geom.__dict__.iteritems() if type(v) is float or type(v) is str})[1:-1]
-		self.assertEqual(geom_msg.attrs, attr_str)
+		new_geom = self.plan_receiver._build_geom(geom_msg)
+		self.assertEquals(type(geom), type(new_geom))
 		
 		geom = GreenCan(3.14, 1.23)
 		geom_msg = self.plan_publisher.create_geom_msg(geom)
-		self.assertEqual(geom_msg.type_name, 'GreenCan')
-		attr_str = str({k:v for k,v in geom.__dict__.iteritems() if type(v) is float or type(v) is str})[1:-1]
-		self.assertIn("'radius': 3.14", geom_msg.attrs)
-
 		new_geom = self.plan_receiver._build_geom(geom_msg)
 		self.assertEquals(geom.radius, new_geom.radius)
 		self.assertEquals(geom.height, new_geom.height)

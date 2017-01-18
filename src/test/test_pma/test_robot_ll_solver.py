@@ -14,6 +14,7 @@ from core.util_classes.openrave_body import OpenRAVEBody
 from core.util_classes import circle
 from core.util_classes.matrix import Vector2d
 from core.internal_repr import parameter, plan
+from ros_interface.plan_publisher import PlanPublisher
 import time, main
 
 VIEWER = True
@@ -42,8 +43,9 @@ class TestRobotLLSolver(unittest.TestCase):
             # objs.extend(cans)
             # view.draw(objs, 0, 0.7)
             return hls.solve(abs_problem, domain, problem)
+            
         self.move_prob = get_plan('../domains/baxter_domain/baxter_probs/move_1234_3.prob')
-        self.grab_prob = get_plan('../domains/baxter_domain/baxter_probs/grasp_1234_1.prob', ['0: GRASP BAXTER CAN0 TARGET0 PDP_TARGET0 EE_TARGET0 ROBOT_END_POSE'])
+        # self.grab_prob = get_plan('../domains/baxter_domain/baxter_probs/grasp_1234_1.prob', ['0: GRASP BAXTER CAN0 TARGET0 PDP_TARGET0 EE_TARGET0 ROBOT_END_POSE'])
         # self.simple_grab_prob = get_plan('../domains/baxter_domain/baxter_probs/simple_grasp.prob')
 
 
@@ -58,11 +60,11 @@ class TestRobotLLSolver(unittest.TestCase):
         else:
             self.viewer = None
 
-    # def test_move_prob(self):
-    #     _test_plan(self, self.move_prob)
-
     def test_move_prob(self):
-        _test_plan(self, self.grab_prob)
+        _test_plan(self, self.move_prob)
+
+    # def test_move_prob(self):
+    #     _test_plan(self, self.grab_prob)
 
     # def test_grasp_prob(self):
     #     _test_resampling(self, self.grab_prob)
@@ -192,6 +194,8 @@ def _test_plan(test_obj, plan, n_resamples=0):
     """
     solver = robot_ll_solver.RobotLLSolver()
     solver.solve(plan, callback=callback, n_resamples=n_resamples, verbose=False)
+    pb = PlanPublisher()
+    # pb.publish_plan(plan)
 
     fp = plan.get_failed_preds()
     _, _, t = plan.get_failed_pred()
@@ -200,11 +204,12 @@ def _test_plan(test_obj, plan, n_resamples=0):
         if t < plan.horizon:
             viewer.draw_plan_ts(plan, t)
 
-    # draw_ts(20)
-    # baxter = plan.actions[0].params[0]
-    # body = viewer.name_to_rave_body["baxter"]
-    # manip = body.env_body.GetManipulator("right_arm")
-    # ee_pose = OpenRAVEBody.obj_pose_from_transform(manip.GetTransform())
+    draw_ts(20)
+    import ipdb; ipdb.set_trace()
+    baxter = plan.actions[0].params[0]
+    body = viewer.name_to_rave_body["baxter"]
+    manip = body.env_body.GetManipulator("right_arm")
+    ee_pose = OpenRAVEBody.obj_pose_from_transform(manip.GetTransform())
 
     print(plan.satisfied())
     # import ipdb; ipdb.set_trace()

@@ -22,11 +22,11 @@ def get_param_vector_helper(pred, res_arr, startind, t, attr_inds):
     for p in pred.attr_inds:
         for attr, ind_arr in pred.attr_inds[p]:
             n_vals = len(ind_arr)
-	    if p.is_symbol():
+            if p.is_symbol():
                 res_arr[i:i+n_vals] = getattr(p, attr)[ind_arr, 0]
-	    else:
-	        res_arr[i:i+n_vals] = getattr(p, attr)[ind_arr, t]
-	    i += n_vals
+            else:
+                res_arr[i:i+n_vals] = getattr(p, attr)[ind_arr, t]
+            i += n_vals
     return i
 
 
