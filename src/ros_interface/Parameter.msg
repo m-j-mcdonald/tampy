@@ -1,0 +1,9 @@
+string type
+bool is_symbol
+FloatArray[] lArmPose
+FloatArray[] rArmPose
+FloatArray[] lGripper
+FloatArray[] rGripper
+FloatArray[] pose
+FloatArray[] value
+FloatArray[] rotation

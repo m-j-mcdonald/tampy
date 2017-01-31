@@ -49,11 +49,13 @@ class TestPlanReceiver(unittest.TestCase):
 		self.setup()
 		geom = Baxter()
 		geom_msg = self.plan_publisher.create_geom_msg(geom)
+
 		new_geom = self.plan_receiver._build_geom(geom_msg)
 		self.assertEquals(type(geom), type(new_geom))
 		
 		geom = GreenCan(3.14, 1.23)
 		geom_msg = self.plan_publisher.create_geom_msg(geom)
+
 		new_geom = self.plan_receiver._build_geom(geom_msg)
 		self.assertEquals(geom.radius, new_geom.radius)
 		self.assertEquals(geom.height, new_geom.height)
