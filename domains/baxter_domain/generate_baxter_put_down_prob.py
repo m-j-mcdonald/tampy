@@ -1,22 +1,19 @@
 from IPython import embed as shell
-
 import itertools
 import numpy as np
 import random
 
 SEED = 1234
 NUM_PROBS = 5
-NUM_CANS = 3 # each can i starts at target i, so we must have NUM_CANS <= NUM_TARGETS
-NUM_TARGETS = 3
-filename = "baxter_probs/grasp"
+NUM_CANS = 1 # each can i starts at target i, so we must have NUM_CANS <= NUM_TARGETS
+NUM_TARGETS = 1
+filename = "baxter_probs/putdown"
 assert NUM_CANS <= NUM_TARGETS
-# GOAL = "(BaxterInGripperPos baxter can0), (BaxterInGripperRot baxter can0)"
-GOAL = "(BaxterRobotAt baxter robot_end_pose), (BaxterInGripperPos baxter can0), (BaxterInGripperRot baxter can0)"
+GOAL = "(BaxterRobotAt baxter robot_end_pose), (BaxterAt can1 target2)"
 
 DIST_SAFE = 5e-3
 
 CAN_ROTATION_INIT = [0,0,0]
-CAN_POSE_INIT = [[1.1, 0.2, 0.925],[1.2, -0.3, 0.925], [1.0, -0.3, 0.925]]
 CAN_RADIUS = 0.02
 CAN_HEIGHT = 0.25
 CAN_GEOM = [CAN_RADIUS, CAN_HEIGHT]
@@ -24,14 +21,13 @@ DIST_BETWEEN_CANS = 0.01
 # init and end robot pose(only the base)
 Baxter_INIT_POSE = [0]
 Baxter_END_POSE = [0]
-R_ARM_INIT = [0, 0, 0, 0, 0, 0, 0]
 L_ARM_INIT = [0, 0, 0, 0, 0, 0, 0]
-Baxter_END_LARM = [0, 0, 0, 0, 0, 0, 0]
-Baxter_END_RARM = [ 0.7  ,  0.258,  2.272,  1.195,  0.377, -0.604, -2.6  ]
-Baxter_Grasp_ArmPose = [ 0.7  , -0.204,  0.862,  1.217,  2.731,  0.665,  2.598]
-
-INT_GRIPPER = [0.02]
-END_GRIPPER = [0.015]
+# R_ARM_INIT = [-np.pi/6, np.pi/4,np.pi/4,np.pi/10,np.pi/4,np.pi/4,0]
+R_ARM_INIT = [0,0,0,0,0,0,0]
+Baxter_END_LARM = [0,0,0,0,0,0,0]
+Baxter_END_RARM = [np.pi/10,0,0,0,0,0,0]
+INT_GRIPPER = [0.015]
+END_GRIPPER = [0.02]
 
 ROBOT_DIST_FROM_TABLE = 0.05
 # rll table
@@ -122,16 +118,16 @@ def main():
         for i in range(NUM_TARGETS):
             target_pos = target_gen.next()
             s += "(geom target{} {} {}), ".format(i, CAN_GEOM[0], CAN_GEOM[1])
-            s += "(value target{} {}), ".format(i, CAN_POSE_INIT[i])
+            s += "(value target{} {}), ".format(i, target_pos)
             s += "(rotation target{} {}),".format(i, CAN_ROTATION_INIT)
-            s += "(value pdp_target{} undefined), ".format(i)
+            s += "(value pdp_target{} undefined)".format(i)
             s += get_baxter_undefined_attrs_str("pdp_target{}".format(i))
             s += "(value ee_target{} undefined), ".format(i)
             s += "(rotation ee_target{} undefined), ".format(i)
 
             if i < NUM_CANS:
                 s += "(geom can{} {} {}), ".format(i, CAN_GEOM[0], CAN_GEOM[1])
-                s += "(pose can{} {}), ".format(i, CAN_POSE_INIT[i])
+                s += "(pose can{} {}), ".format(i, target_pos)
                 s += "(rotation can{} {}),".format(i, CAN_ROTATION_INIT)
                 # s += "(value gp_can{} undefined), ".format(i)
         s += "(geom {}), ".format("baxter")
@@ -146,7 +142,7 @@ def main():
 
         # table pose
         z = TABLE_THICKNESS/2 + TABLE_LEG_HEIGHT - DIST_SAFE
-        s += "(pose {} [1, 0.02, {}]), ".format("table", z)
+        s += "(pose {} [0.75, 0.02, {}]), ".format("table", z)
         s += "(rotation {} {}), ".format("table", CAN_ROTATION_INIT)
         s += "(geom {} {}); ".format("table", TABLE_GEOM)
 
@@ -158,13 +154,11 @@ def main():
             # s += "(InContact baxter gp_can{} target{}), ".format(i, i)
             # s += "(GraspValid gp_can{} target{} grasp0), ".format(i, i)
         for i in range(NUM_TARGETS):
-            # s += "(BaxterInContact baxter ee_target{} target{}), ".format(i, i)
+            s += "(BaxterInContact baxter ee_target{} target{}), ".format(i, i)
             s += "(BaxterGraspValidPos ee_target{} target{}), ".format(i, i)
             s += "(BaxterGraspValidRot ee_target{} target{}), ".format(i, i)
             s += "(BaxterEEReachablePos baxter pdp_target{} ee_target{}), ".format(i, i)
             s += "(BaxterEEReachableRot baxter pdp_target{} ee_target{}), ".format(i, i)
-        # s += "(BaxterInGripperPos baxter can0), "
-        # s += "(BaxterInGripperRot baxter can0), "
         s += "(BaxterRobotAt baxter robot_init_pose), "
         # s += "(BaxterStationaryArms baxter), "
         s += "(BaxterStationaryBase baxter), "

@@ -41,14 +41,22 @@ class OpenRAVEViewer(Viewer):
         self.name_to_rave_body = {}
 
     @staticmethod
-    def create_viewer():
+    def create_viewer(env = None):
         # if reset and OpenRAVEViewer._viewer != None:
         #     ## close the old viewer to avoid a threading error
         #     OpenRAVEViewer._viewer = None
         if OpenRAVEViewer._viewer == None:
-            return OpenRAVEViewer()
+            return OpenRAVEViewer(env)
         OpenRAVEViewer._viewer.clear()
         return OpenRAVEViewer._viewer
+
+    def lazy_spawn_or_body(self, param, name, geom):
+        if param.openrave_body is not None:
+            assert geom == param.openrave_body._geom
+            assert self.env == param.openrave_body.env_body.GetEnv()
+        else:
+            param.openrave_body = OpenRAVEBody(self.env, name, geom)
+        return param.openrave_body
 
     def record_plan(self, plan, outf, res = (640, 480), cam=None):
         """
