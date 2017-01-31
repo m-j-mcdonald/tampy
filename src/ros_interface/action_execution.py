@@ -13,9 +13,9 @@ def execute_action(action):
 	def get_joint_positions(limb, pos, i):
 
 		return {limb + "_s0": pos[0][i], limb + "_s1": pos[1][i], \
-			limb + "_e0": pos[2][i], limb + "_e1": pos[3][i], \
-			limb + "_w0": pos[4][i], limb + "_w1": pos[5][i], \
-			limb + "_w2": pos[6][i]}
+				limb + "_e0": pos[2][i], limb + "_e1": pos[3][i], \
+				limb + "_w0": pos[4][i], limb + "_w1": pos[5][i], \
+				limb + "_w2": pos[6][i]}
 
 	
 	baxter = None
@@ -40,7 +40,7 @@ def execute_action(action):
 		if not init_state:
 			print("Disabling robot...")
 			rs.disable()
-	# rospy.on_shutdown(clean_shutdown)
+	rospy.on_shutdown(clean_shutdown)
 
 	print("Enabling robot... ")
 	rs.enable()
@@ -76,6 +76,7 @@ def execute_action(action):
 				gripper.command_position(grip)
 				queue.put(None)
 			except Exception, exception:
+				print "Exception raised in joint movement thread"
 				queue.put(traceback.format_exc())
 				queue.put(exception)
 
@@ -121,5 +122,3 @@ def execute_action(action):
 
 	left.move_to_neutral()
 	right.move_to_neutral()
-	print "Disabling robot..."
-	rs.disable()
