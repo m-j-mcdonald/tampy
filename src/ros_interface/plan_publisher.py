@@ -85,6 +85,7 @@ class PlanPublisher(object):
 		action_msg = ActionMSG()
 		action_msg.name = action.name
 		action_msg.active_timesteps = action.active_timesteps
+		action_msg.step_num = action.step_num
 		for param in action.params:
 			action_msg.parameters.append(param.name)
 		for pred in action.preds:

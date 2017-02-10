@@ -115,7 +115,7 @@ class Object(Parameter):
 
     def write_to_hdf5(self, file_name):
         hdf5_file = h5py.File(file_name, 'w')
-        group = hdf5_file.create_group('trajectory')
+        group = hdf5_file.create_group('param')
         for attr_name, value in self.__dict__.items():
             if issubclass(self.get_attr_type(attr_name), Vector):
                 group.create_dataset(attr_name, data=value)

@@ -36,7 +36,6 @@ class TestRobotLLSolver(unittest.TestCase):
             if plan_str is not None:
                 return hls.get_plan(plan_str, domain, problem)
             return hls.solve(abs_problem, domain, problem)
-<<<<<<< HEAD
 
         # Successful Problem
         # self.move_arm_prob = get_plan('../domains/baxter_domain/baxter_probs/baxter_move_arm.prob')
@@ -50,25 +49,6 @@ class TestRobotLLSolver(unittest.TestCase):
 
         # Problem for test_free_attrs test
         # self.test_free_attrs_prob = get_plan('../domains/baxter_domain/baxter_probs/baxter_complex_grasp.prob', ['0: GRASP BAXTER CAN0 TARGET0 PDP_TARGET0 EE_TARGET0 ROBOT_END_POSE'])
-
-    # Helper function used for debug purposes
-=======
-        # Successful Problem
-        # self.move_arm_prob = get_plan('../domains/baxter_domain/baxter_probs/baxter_move_arm.prob')
-        # self.grab_prob = get_plan('../domains/baxter_domain/baxter_probs/baxter_grasp.prob', ['0: GRASP BAXTER CAN0 TARGET0 PDP_TARGET0 EE_TARGET0 ROBOT_END_POSE'])
-        # self.move_hold_prob = get_plan('../domains/baxter_domain/baxter_probs/baxter_move_holding.prob', ['0: MOVETOHOLDING BAXTER ROBOT_INIT_POSE ROBOT_END_POSE CAN0'])
-
-        # Problem for testing
-        self.complex_grab_prob = get_plan('../domains/baxter_domain/baxter_probs/baxter_complex_grasp.prob', ['0: GRASP BAXTER CAN0 TARGET0 PDP_TARGET0 EE_TARGET0 ROBOT_END_POSE'])
-
-        # self.putdown_prob = get_plan('../domains/baxter_domain/baxter_probs/putdown_1234_0.prob', ['0: PUTDOWN BAXTER CAN0 TARGET2 ROBOT_INIT_POSE EE_TARGET2 ROBOT_END_POSE'])
-
-        # Problem for test_free_attrs test
-        # self.test_free_attrs_prob = get_plan('../domains/baxter_domain/baxter_probs/baxter_complex_grasp.prob', ['0: GRASP BAXTER CAN0 TARGET0 PDP_TARGET0 EE_TARGET0 ROBOT_END_POSE'])
-
-    # Helper function used for debug purposes
-
->>>>>>> 408b435fdfc4097cb38768d70b00acbeeb397da3
 
     # Successful plan
     # def test_move_prob(self):
