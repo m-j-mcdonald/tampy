@@ -518,6 +518,32 @@ class PosePredicate(ExprPredicate):
 
         return rot_val, rot_jac
 
+    def ee_rot_check_rel_obj(self, x, rel_pt):
+        """
+            This function is used to check whether:
+                End effective pose's rotational axis is paralle to that of robot gripper
+
+            x: 26 dimensional list aligned in following order,
+            BasePose->BackHeight->LeftArmPose->LeftGripper->RightArmPose->RightGripper->eePose->eRot
+
+            Note: Child class that uses this function needs to provide set_robot_poses and get_robot_info functions
+        """
+        robot_body = self._param_to_body[self.robot]
+        robot = robot_body.env_body
+
+        self.set_robot_poses(x, robot_body)
+        robot_trans, arm_inds = self.get_robot_info(robot_body)
+        arm_joints = [robot.GetJointFromDOFIndex(ind) for ind in arm_inds]
+
+        ee_pos, ee_rot = x[-6:-3], x[-3:]
+        obj_trans = OpenRAVEBody.transform_from_obj_pose(ee_pos, ee_rot)
+        Rz, Ry, Rx = OpenRAVEBody._axis_rot_matrices(ee_pos, ee_rot)
+        axises = [[0,0,1], np.dot(Rz, [0,1,0]), np.dot(Rz, np.dot(Ry, [1,0,0]))] # axises = [axis_z, axis_y, axis_x]
+        # Obtain the pos and rot val and jac from 2 function calls
+        pos_val, pos_jac = self.rot_error_rel_to_obj(obj_trans, robot_trans, axises, arm_joints, rel_pt)
+
+        return pos_val, pos_jac
+
     def rot_lock(self, obj_trans, robot_trans, axises, arm_joints):
         """
             This function calculates the value and the jacobian of the rotational error between
@@ -549,6 +575,36 @@ class PosePredicate(ExprPredicate):
         rot_jac = np.vstack(rot_jacs)
 
         return (rot_val, rot_jac)
+
+    def rot_error_rel_to_obj(self, obj_trans, robot_trans, axises, arm_joints, rel_pt):
+        """
+            This function calculates the value and the jacobian of the rotational error between
+            robot gripper's rotational axis and a point relative to the object
+
+            obj_trans: object's rave_body transformation
+            robot_trans: robot gripper's rave_body transformation
+            axises: rotational axises of the object
+            arm_joints: list of robot joints
+        """
+        gp = rel_pt
+        robot_pos = robot_trans[:3, 3]
+        obj_pos = np.dot(obj_trans, np.r_[gp, 1])[:3]
+        dist_val = (robot_pos.flatten() - obj_pos.flatten()).reshape((3,1))
+        # Calculate the joint jacobian
+        arm_jac = np.array([np.cross(joint.GetAxis(), robot_pos.flatten() - joint.GetAnchor()) for joint in arm_joints]).T.copy()
+        # Calculate jacobian for the robot base
+        base_jac = np.eye(3)
+        base_jac[:,2] = np.cross(np.array([0, 0, 1]), robot_pos - self.x[:3])
+        # Calculate jacobian for the back hight
+        torso_jac = np.array([[0],[0],[1]])
+        # Calculate object jacobian
+        # obj_jac = -1*np.array([np.cross(axis, obj_pos - gp - obj_trans[:3,3].flatten()) for axis in axises]).T
+        obj_jac = -1*np.array([np.cross(axis, obj_pos - obj_trans[:3,3].flatten()) for axis in axises]).T
+        obj_jac = np.c_[-np.eye(3), obj_jac]
+        # Create final 3x26 jacobian matrix -> (Gradient checked to be correct)
+        dist_jac = np.hstack((base_jac, torso_jac, np.zeros((3, 8)), arm_jac, np.zeros((3, 1)), obj_jac))
+
+        return (dist_val, dist_jac)
 
 class At(ExprPredicate):
     """
@@ -1048,7 +1104,7 @@ class RCollides(CollisionPredicate):
         self.neg_expr_opt = LEqExpr(col_expr_neg_opt, val)
 
         super(RCollides, self).__init__(name, e, attr_inds, params,
-                                        expected_param_types, ind0=0, ind1=1)
+                                        expected_param_types, ind0=0, ind1=1, tol=1e-2)
 
         self.priority = 2
 

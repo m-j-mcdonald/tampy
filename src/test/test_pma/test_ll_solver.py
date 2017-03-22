@@ -155,17 +155,17 @@ class TestLLSolver(unittest.TestCase):
         # import ipdb; ipdb.set_trace()
         # time.sleep(3)
 
-    def test_move_no_obs(self):
-        _test_plan(self, self.move_no_obs)
+    # def test_move_no_obs(self):
+    #     _test_plan(self, self.move_no_obs)
 
-    def test_move_w_obs(self):
-        _test_plan(self, self.move_w_obs)
+    # def test_move_w_obs(self):
+    #     _test_plan(self, self.move_w_obs)
 
-    def test_move_grasp(self):
-        _test_plan(self, self.move_grasp)
+    # def test_move_grasp(self):
+    #     _test_plan(self, self.move_grasp)
 
-    def test_moveholding(self):
-        _test_plan(self, self.move_grasp_moveholding)
+    # def test_moveholding(self):
+    #     _test_plan(self, self.move_grasp_moveholding)
 
     def test_place(self):
         _test_plan(self, self.place)
@@ -183,25 +183,25 @@ class TestLLSolver(unittest.TestCase):
         _test_plan(self, self.putaway2, plot=False, animate=False)
 
 
-    def test_early_converge(self):
-        print "No Early Converge"
-        _test_plan(self, self.putaway2, plot=False, animate=False)
-        print "Early Converge"
-        _test_plan(self, self.putaway2, plot=False, early_converge=True, animate=False)
-    def test_backtrack_move(self):
-        _test_plan(self, self.move_no_obs, method='Backtrack')
+    # def test_early_converge(self):
+    #     print "No Early Converge"
+    #     _test_plan(self, self.putaway2, plot=False, animate=False)
+    #     print "Early Converge"
+    #     _test_plan(self, self.putaway2, plot=False, early_converge=True, animate=False)
+    # # def test_backtrack_move(self):
+    #     _test_plan(self, self.move_no_obs, method='Backtrack')
 
-    def test_backtrack_move_grasp(self):
-        _test_plan(self, self.move_grasp, method='Backtrack')
+    # def test_backtrack_move_grasp(self):
+    #     _test_plan(self, self.move_grasp, method='Backtrack')
 
-    def test_backtrack_moveholding(self):
-        _test_plan(self, self.move_grasp_moveholding, method='Backtrack')
+    # def test_backtrack_moveholding(self):
+    #     _test_plan(self, self.move_grasp_moveholding, method='Backtrack')
 
-    def test_backtrack_putaway(self):
-        _test_plan(self, self.putaway, method='Backtrack')
+    # def test_backtrack_putaway(self):
+    #     _test_plan(self, self.putaway, method='Backtrack')
 
-    def test_backtrack_putaway2(self):
-        _test_plan(self, self.putaway2, method='Backtrack', plot=False)
+    # def test_backtrack_putaway2(self):
+    #     _test_plan(self, self.putaway2, method='Backtrack', plot=False)
 
 def _test_plan(test_obj, plan, method='SQP', plot=False, animate=False, verbose=False,
                early_converge=False):
@@ -216,7 +216,7 @@ def _test_plan(test_obj, plan, method='SQP', plot=False, animate=False, verbose=
                 namo_solver._update_ll_params()
                 # viewer.draw_plan_range(plan, range(57, 77)) # displays putdown action
                 # viewer.draw_plan_range(plan, range(38, 77)) # displays moveholding and putdown action
-                viewer.draw_plan_range(plan, [0,19,38])
+                viewer.draw_plan_range(plan, [0,19])
                 # viewer.draw_plan(plan)
                 # viewer.draw_cols(plan)
                 time.sleep(0.03)
@@ -241,7 +241,8 @@ def _test_plan(test_obj, plan, method='SQP', plot=False, animate=False, verbose=
         if t < plan.horizon:
             viewer.draw_plan_ts(plan, t)
 
-    # test_obj.assertTrue(plan.satisfied())
+    # import ipdb; ipdb.set_trace()
+    test_obj.assertTrue(plan.satisfied())
 
 
 if __name__ == "__main__":
