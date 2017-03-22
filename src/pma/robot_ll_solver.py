@@ -85,15 +85,17 @@ class RobotLLSolver(LLSolver):
                                  active_ts=active_ts, verbose=verbose)
             success = self._solve_opt_prob(plan, priority=1,
                             callback=callback, active_ts=active_ts, verbose=verbose)
-            if success:
-                return success
+            if success and len(plan.get_failed_preds()) == 0:
+                print "Optimization success after {} resampling.".format(_)
+                return _
         return success
 
     def _solve_opt_prob(self, plan, priority, callback=None, init=True,
                         active_ts=None, verbose=False):
         robot = plan.params['baxter']
         body = plan.env.GetRobot("baxter")
-        viewer = callback()
+        if callback is not None:
+            viewer = callback()
         def draw(t):
             viewer.draw_plan_ts(plan, t)
 
@@ -102,7 +104,7 @@ class RobotLLSolver(LLSolver):
         ## in the optimization
         if active_ts==None:
             active_ts = (0, plan.horizon-1)
-
+        plan.save_free_attrs()
         model = grb.Model()
         model.params.OutputFlag = 0
         self._prob = Prob(model, callback=callback)
@@ -130,7 +132,6 @@ class RobotLLSolver(LLSolver):
             self._add_first_and_last_timesteps_of_actions(plan,
                 priority=MAX_PRIORITY, active_ts=active_ts, verbose=verbose,
                 add_nonlin=True)
-            plan.save_free_attrs()
             tol = 1e-1
         elif priority == 0:
             """
@@ -139,17 +140,10 @@ class RobotLLSolver(LLSolver):
             """
             ## this should only get called with a full plan for now
             # assert active_ts == (0, plan.horizon-1)
-
-            plan.restore_free_attrs()
-            plan.save_free_attrs()
-
             failed_preds = plan.get_failed_preds()
-            if len(failed_preds) <= 0:
-                return True
-            import ipdb; ipdb.set_trace()
 
-            print "{} predicates fails, resampling process begin...\n \
-                   Checking {}".format(len(failed_preds), failed_preds[0])
+            # print "{} predicates fails, resampling process begin...\n \
+            #        Checking {}".format(len(failed_preds), failed_preds[0])
 
             ## this is an objective that places
             ## a high value on matching the resampled values
@@ -158,13 +152,14 @@ class RobotLLSolver(LLSolver):
             obj_bexprs.extend(rs_obj)
             # _get_transfer_obj returns the expression saying the current trajectory should be close to it's previous trajectory.
             # obj_bexprs.extend(self._get_trajopt_obj(plan, active_ts))
-            # obj_bexprs.extend(self._get_transfer_obj(plan, self.transfer_norm))
-            obj_bexprs.extend(self._get_unfree_obj(plan, active_ts))
+            obj_bexprs.extend(self._get_transfer_obj(plan, self.transfer_norm))
+            # obj_bexprs.extend(self._get_unfree_obj(plan, active_ts))
 
             self._add_obj_bexprs(obj_bexprs)
             self._add_all_timesteps_of_actions(plan, priority=1,
                 add_nonlin=True, active_ts= active_ts, verbose=verbose)
             tol = 1e-3
+
         elif priority >= 1:
             obj_bexprs = self._get_trajopt_obj(plan, active_ts)
             self._add_obj_bexprs(obj_bexprs)
@@ -176,13 +171,11 @@ class RobotLLSolver(LLSolver):
         solv.initial_trust_region_size = self.initial_trust_region_size
         solv.initial_penalty_coeff = self.init_penalty_coeff
         solv.max_merit_coeff_increases = self.max_merit_coeff_increases
-        import ipdb; ipdb.set_trace()
         success = solv.solve(self._prob, method='penalty_sqp', tol=tol, verbose=True)
         self._update_ll_params()
         print "priority: {}".format(priority)
-        # if callback is not None: callback(True)
-        # if priority >= 1:
-            ##Restore free_attrs values
+        ##Restore free_attrs values
+        plan.restore_free_attrs()
         return success
 
 
@@ -191,8 +184,7 @@ class RobotLLSolver(LLSolver):
             This function returns the expression e(x) = P|x - cur|^2
             Which says the optimized trajectory should be close to the
             previous trajectory.
-            Where P is the KT x KT matrix, where Px is the difference of
-            value in current timestep compare to next timestep
+            Where P is the KT x KT matrix, where Px is the difference of parameter's attributes' current value and parameter's next timestep value
         """
 
         transfer_objs = []

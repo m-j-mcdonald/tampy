@@ -14,8 +14,8 @@ JOINT_MOVE_FACTOR = 10
 OBJ_RING_SAMPLING_RADIUS = 0.6
 NUM_EEREACHABLE_RESAMPLE_ATTEMPTS = 10
 
-APPROACH_DIST = 0.05
-RETREAT_DIST = 0.050
+APPROACH_DIST = 0.025
+RETREAT_DIST = 0.025
 EEREACHABLE_STEPS = 3
 
 #These functions are helper functions that can be used by many robots
@@ -305,7 +305,8 @@ def resample_rcollides(pred, negated, t, plan):
     # Variable that needs to added to BoundExpr and latter pass to the planner
     JOINT_STEP = 20
     STEP_DECREASE_FACTOR = 1.5
-    ATTEMPT_SIZE = 5
+    ATTEMPT_SIZE = 7
+    LIN_SAMP_RANGE = 5
 
     attr_inds = OrderedDict()
     res = []
@@ -323,20 +324,32 @@ def resample_rcollides(pred, negated, t, plan):
                        "rArmPose": robot.rArmPose[:, t].flatten(),
                        "rGripper": robot.rGripper[:, t].flatten()})
 
-    col_report = CollisionReport()
+    ## Determine the range we should resample
+    pred_list = [act_pred['active_timesteps'] for act_pred in plan.actions[0].preds if act_pred['pred'].spacial_anchor == True]
+    start, end = 0, plan.horizon-1
+    for action in plan.actions:
+        if action.active_timesteps[0] <= t and action.active_timesteps[1] > t:
+            for act_pred in plan.actions[0].preds:
+                if act_pred['pred'].spacial_anchor == True:
+                    if act_pred['active_timesteps'][0] + act_pred['pred'].active_range[0] > t:
+                        end = min(end, act_pred['active_timesteps'][0] + act_pred['pred'].active_range[0])
+                    if act_pred['active_timesteps'][1] + act_pred['pred'].active_range[1] < t:
+                        start = max(start, act_pred['active_timesteps'][1] + act_pred['pred'].active_range[1])
 
+    desired_end_pose = robot.rArmPose[:, end]
+    current_end_pose = robot.rArmPose[:, t]
+    col_report = CollisionReport()
     collisionChecker = RaveCreateCollisionChecker(plan.env,'pqp')
     count = 1
-    import ipdb; ipdb.set_trace()
     while (body.CheckSelfCollision() or
            collisionChecker.CheckCollision(body, report=col_report) or
            col_report.minDistance <= pred.dsafe):
-
         step_sign = np.ones(len(arm_inds))
         step_sign[np.random.choice(len(arm_inds), len(arm_inds)/2, replace=False)] = -1
         # Ask in collision pose to randomly move a step, hopefully out of collision
         arm_pose = original_pose + np.multiply(step_sign, joint_step)
-        add_to_attr_inds_and_res(t, attr_inds, res, robot,[('rArmPose', arm_pose)])
+        rave_body.set_dof({"rArmPose": arm_pose})
+        # arm_pose = body.GetActiveDOFValues()[arm_inds]
         if not count % ATTEMPT_SIZE:
             step_factor = step_factor/STEP_DECREASE_FACTOR
             joint_step = (ub_limit[arm_inds] - lb_limit[arm_inds])/ step_factor
@@ -344,10 +357,18 @@ def resample_rcollides(pred, negated, t, plan):
 
         # For Debug
         rave_body.set_pose([0,0,robot.pose[:, t]])
-
-    import ipdb; ipdb.set_trace()
-
+    add_to_attr_inds_and_res(t, attr_inds, res, robot,[('rArmPose', arm_pose)])
     robot._free_attrs['rArmPose'][:, t] = 0
+
+
+    start, end = max(start, t-LIN_SAMP_RANGE), min(t+LIN_SAMP_RANGE, end)
+    rcollides_traj = np.hstack([lin_interp_traj(robot.rArmPose[:, start], arm_pose, t-start), lin_interp_traj(arm_pose, robot.rArmPose[:, end], end - t)[:, 1:]]).T
+    i = start + 1
+    for traj in rcollides_traj[1:-1]:
+        add_to_attr_inds_and_res(i, attr_inds, res, robot, [('rArmPose', traj)])
+        i +=1
+
+
     return np.array(res), attr_inds
 
 
