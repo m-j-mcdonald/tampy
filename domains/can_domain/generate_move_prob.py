@@ -149,7 +149,7 @@ def main():
         s += "(geom {} {}); ".format("table", TABLE_GEOM)
 
         for i in range(NUM_CANS):
-            s += "(At can{} target{}), ".format(i, i)
+            s += "(PR2At can{} target{}), ".format(i, i)
             s += "(Stationary can{}), ".format(i)
             for j in range(NUM_CANS):
                 s += "(StationaryNEq can{} can{}), ".format(i, j)

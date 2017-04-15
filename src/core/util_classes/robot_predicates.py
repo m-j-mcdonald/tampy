@@ -11,7 +11,7 @@ import time
 # Needed
 POSE_TOL = 2e-2
 EEREACHABLE_STEPS = 3
-DIST_SAFE = 1e-2
+DIST_SAFE = 1e-3
 COLLISION_TOL = 1e-3
 MAX_CONTACT_DISTANCE = .1
 
@@ -371,13 +371,15 @@ class PosePredicate(ExprPredicate):
         # Calculate jacobian for the robot base
         base_jac = np.eye(3)
         base_jac[:,2] = np.cross(np.array([0, 0, 1]), robot_pos - self.x[:3])
+        # base_jac = np.cross(np.array([0, 0, 1]), robot_pos - np.zeros((3,))).reshape((3,1))
         # Calculate jacobian for the back hight
         torso_jac = np.array([[0],[0],[1]])
         # Calculate object jacobian
         obj_jac = -1*np.array([np.cross(axis, obj_pos - gp - obj_trans[:3,3].flatten()) for axis in axises]).T
         obj_jac = np.c_[-np.eye(3), obj_jac]
         # Create final 3x26 jacobian matrix -> (Gradient checked to be correct)
-        dist_jac = np.hstack((base_jac, torso_jac, np.zeros((3, 8)), arm_jac, np.zeros((3, 1)), obj_jac))
+        # dist_jac = np.hstack((base_jac, torso_jac, np.zeros((3, 8)), arm_jac, np.zeros((3, 1)), obj_jac))
+        dist_jac = np.hstack((torso_jac, np.zeros((3, 8)), arm_jac, np.zeros((3, 1)), base_jac, obj_jac))
         return dist_val, dist_jac
 
     def rot_check(self, x):
@@ -424,6 +426,7 @@ class PosePredicate(ExprPredicate):
         obj_dir = obj_dir/np.linalg.norm(obj_dir)
         world_dir = world_dir/np.linalg.norm(world_dir)
         rot_val = np.array([[np.abs(np.dot(obj_dir, world_dir)) - 1]])
+        sign = np.sign(np.dot(obj_dir, world_dir))
         # computing robot's jacobian
         arm_jac = np.array([np.dot(obj_dir, np.cross(joint.GetAxis(), world_dir)) for joint in arm_joints]).T.copy()
         arm_jac = arm_jac.reshape((1, len(arm_joints)))
@@ -433,7 +436,8 @@ class PosePredicate(ExprPredicate):
         obj_jac = np.array([np.dot(world_dir, np.cross(axis, obj_dir)) for axis in axises])
         obj_jac = np.r_[[0,0,0], obj_jac].reshape((1, 6))
         # Create final 1x26 jacobian matrix
-        rot_jac = np.hstack((base_jac, np.zeros((1, 9)), arm_jac, np.zeros((1,1)), obj_jac))
+        # rot_jac = np.hstack((base_jac, np.zeros((1, 9)), arm_jac, np.zeros((1,1)), obj_jac))
+        rot_jac = np.hstack((np.zeros((1, 9)), arm_jac, np.zeros((1,1)), base_jac, obj_jac))
 
         return (rot_val, rot_jac)
 
@@ -488,7 +492,8 @@ class PosePredicate(ExprPredicate):
         obj_jac = -1*np.array([np.cross(axis, obj_pos - obj_trans[:3,3].flatten()) for axis in axises]).T
         obj_jac = np.c_[-np.eye(3), obj_jac]
         # Create final 3x26 jacobian matrix -> (Gradient checked to be correct)
-        dist_jac = np.hstack((base_jac, torso_jac, np.zeros((3, 8)), arm_jac, np.zeros((3, 1)), obj_jac))
+        # dist_jac = np.hstack((base_jac, torso_jac, np.zeros((3, 8)), arm_jac, np.zeros((3, 1)), obj_jac))
+        dist_jac = np.hstack((torso_jac, np.zeros((3, 8)), arm_jac, np.zeros((3, 1)), base_jac, obj_jac))
 
         return (dist_val, dist_jac)
 
@@ -560,16 +565,18 @@ class PosePredicate(ExprPredicate):
             obj_dir = np.dot(obj_trans[:3,:3], local_dir)
             world_dir = robot_trans[:3,:3].dot(local_dir)
             rot_vals.append(np.array([[np.dot(obj_dir, world_dir) - 1]]))
+            sign = np.sign(np.dot(obj_dir, world_dir))
             # computing robot's jacobian
-            arm_jac = np.array([np.dot(obj_dir, np.cross(joint.GetAxis(), world_dir)) for joint in arm_joints]).T.copy()
+            arm_jac = np.array([np.dot(obj_dir, np.cross(joint.GetAxis(), sign*world_dir)) for joint in arm_joints]).T.copy()
             arm_jac = arm_jac.reshape((1, len(arm_joints)))
             base_jac = np.array(np.dot(obj_dir, np.cross([0,0,1], world_dir)))
             base_jac = np.array([[0, 0, base_jac]])
             # computing object's jacobian
             obj_jac = np.array([np.dot(world_dir, np.cross(axis, obj_dir)) for axis in axises])
-            obj_jac = np.r_[[0,0,0], obj_jac].reshape((1, 6))
+            obj_jac = sign*np.r_[[0,0,0], obj_jac].reshape((1, 6))
             # Create final 1x26 jacobian matrix
-            rot_jacs.append(np.hstack((base_jac, np.zeros((1, 9)), arm_jac, np.zeros((1,1)), obj_jac)))
+            # rot_jacs.append(np.hstack((base_jac, np.zeros((1, 9)), arm_jac, np.zeros((1,1)), obj_jac)))
+            rot_jacs.append(np.hstack((np.zeros((1, 9)), arm_jac, np.zeros((1,1)), base_jac, obj_jac)))
 
         rot_val = np.vstack(rot_vals)
         rot_jac = np.vstack(rot_jacs)
@@ -602,7 +609,7 @@ class PosePredicate(ExprPredicate):
         obj_jac = -1*np.array([np.cross(axis, obj_pos - obj_trans[:3,3].flatten()) for axis in axises]).T
         obj_jac = np.c_[-np.eye(3), obj_jac]
         # Create final 3x26 jacobian matrix -> (Gradient checked to be correct)
-        dist_jac = np.hstack((base_jac, torso_jac, np.zeros((3, 8)), arm_jac, np.zeros((3, 1)), obj_jac))
+        dist_jac = np.hstack((torso_jac, np.zeros((3, 8)), arm_jac, np.zeros((3, 1)), base_jac, obj_jac))
 
         return (dist_val, dist_jac)
 
@@ -871,7 +878,7 @@ class InGripper(PosePredicate):
         grad = lambda x: self.coeff*self.eval_grad(x)
 
         self.opt_expr = EqExpr(Expr(lambda x: self.opt_coeff * f(x),
-                                    lambda x: self.opt_coeff*grad(x)),
+                                    lambda x: self.opt_coeff * grad(x)),
                                 np.zeros((1,1)))
 
         pos_expr, val = Expr(f, grad), np.zeros((3,1))

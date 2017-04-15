@@ -51,11 +51,11 @@ class TestCanSolver(unittest.TestCase):
         # self.move_no_obs = get_plan('../domains/can_domain/can_probs/can_1234_0.prob')
         # self.grasp = get_plan('../domains/can_domain/can_probs/grasp.prob')
         # self.grasp = get_plan('../domains/can_domain/can_probs/grasp_rot.prob')
-        # self.grasp_gen = get_plan('../domains/can_domain/can_probs/can_grasp_1234_0.prob')
+        # self.grasp_gen = get_plan('../domains/can_domain/can_probs/can_grasp_1234_1.prob')
         # self.moveholding = get_plan('../domains/can_domain/can_probs/can_1234_0.prob', ['0: MOVETOHOLDING PR2 ROBOT_INIT_POSE ROBOT_END_POSE CAN0'])
-        # # self.moveholding = get_plan('../domains/can_domain/can_probs/can_1234_0.prob')
+        # self.moveholding = get_plan('../domains/can_domain/can_probs/can_1234_0.prob')
         # self.gen_plan = get_plan('../domains/can_domain/can_probs/can_1234_0.prob')
-        # self.grasp_obstructs1 = get_plan('../domains/can_domain/can_probs/can_grasp_1234_1.prob', ['0: GRASP PR2 CAN0 TARGET0 PDP_TARGET0 EE_TARGET0 PDP_TARGET0'])
+        self.grasp_obstructs1 = get_plan('../domains/can_domain/can_probs/can_grasp_1234_1.prob', ['0: GRASP PR2 CAN0 TARGET0 PDP_TARGET0 EE_TARGET0 PDP_TARGET0'])
         # self.grasp_obstructs0 = get_plan('../domains/can_domain/can_probs/can_grasp_1234_0.prob', ['0: GRASP PR2 CAN0 TARGET0 PDP_TARGET0 EE_TARGET0 PDP_TARGET0'])
 
         # self.grasp_obstructs = get_plan('../domains/can_domain/can_probs/can_grasp_1234_4.prob', ['0: GRASP PR2 CAN0 TARGET0 PDP_TARGET0 EE_TARGET0 PDP_TARGET0'])
@@ -70,14 +70,13 @@ class TestCanSolver(unittest.TestCase):
 
     # def test_move(self):
     #     _test_plan(self, self.move_no_obs)
-    #
+    
     # def test_backtrack_move(self):
     #     _test_backtrack_plan(self, self.move_no_obs, method='Backtrack', plot = True)
 
 
-    def test_move_obs(self):
-        pass
-        # _test_plan(self, self.bmove)
+    # def test_move_obs(self):
+    #      _test_plan(self, self.bmove)
 
     # def test_grasp_gen(self):
     #     np.random.seed(1)
@@ -85,32 +84,29 @@ class TestCanSolver(unittest.TestCase):
 
     # def test_grasp(self):
     #     np.random.seed(1)
-    #     _test_plan(self, self.grasp, n_resamples=0)
+    #     _test_plan(self, self.grasp, n_resamples=5)
 
     # def test_grasp_resampling(self):
-    #     # np.random.seed(4)
-    #     np.random.seed(3) # demonstrates the need to use closest joint angles
-    #     _test_resampling(self, self.grasp_obstructs0, n_resamples=3)
+    # #     # np.random.seed(4)
+    # #     np.random.seed(3) # demonstrates the need to use closest joint angles
+    # #     _test_resampling(self, self.grasp_obstructs0, n_resamples=3)
 
-        # demonstate base moving from farther away
-        # np.random.seed(2)
-        # _test_resampling(self, self.grasp_obstructs0, n_resamples=3)
+    #     # demonstate base moving from farther away
+    #     # np.random.seed(2)
+    #     # _test_resampling(self, self.grasp_obstructs0, n_resamples=3)
 
-        # demonstrates base moving
-        # np.random.seed(6) # forms right angle
-        # _test_resampling(self, self.grasp_obstructs1, n_resamples=3)
+    #     # demonstrates base moving
+    #     np.random.seed(6) # forms right angle
+    #     _test_resampling(self, self.grasp_obstructs1, n_resamples=3)
 
     def test_grasp_obstructs(self):
-        pass
-        # _test_plan(self, self.grasp, n_resamples=3)
+        _test_plan(self, self.grasp_obstructs1, n_resamples=5)
 
-    def test_moveholding(self):
-        pass
-        # _test_plan(self, self.moveholding)
+    # def test_moveholding(self):
+    #     _test_plan(self, self.moveholding)
 
-    def test_gen_plan(self):
-        pass
-        # _test_plan(self, self.gen_plan)
+    # def test_gen_plan(self):
+    #     _test_plan(self, self.gen_plan)
 
 def get_animate_fn(viewer, plan):
     def animate():
@@ -168,15 +164,15 @@ def _test_resampling(test_obj, plan, n_resamples=0):
         ## and then solves a transfer optimization that only includes linear constraints
         solver._solve_opt_prob(plan, priority=0, callback=callback, active_ts=active_ts, verbose=verbose)
         fp = plan.get_failed_preds()
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
 
-        solver._solve_opt_prob(plan, priority=1, callback=calloback, active_ts=active_ts, verbose=verbose)
+        solver._solve_opt_prob(plan, priority=1, callback=callback, active_ts=active_ts, verbose=verbose)
         fp = plan.get_failed_preds()
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
 
         success = solver._solve_opt_prob(plan, priority=2, callback=callback, active_ts=active_ts, verbose=verbose)
         fp = plan.get_failed_preds()
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         if len(fp) == 0:
             break
 
@@ -189,7 +185,8 @@ def _test_resampling(test_obj, plan, n_resamples=0):
     #     if t < plan.horizon:
     #         viewer.draw_plan_ts(plan, t)
 
-    test_obj.assertTrue(plan.satisfied(FAKE_TOL))
+    import ipdb; ipdb.set_trace()
+    test_obj.assertTrue(plan.satisfied())
 
 
 def _test_plan(test_obj, plan, n_resamples=0):
@@ -215,7 +212,7 @@ def _test_plan(test_obj, plan, n_resamples=0):
         # draw_ts(50)
         if set_trace:
             animate()
-            import ipdb; ipdb.set_trace()
+            #  import ipdb; ipdb.set_trace()
 
         # viewer.draw_plan(plan)
         # time.sleep(0.03)
@@ -226,13 +223,13 @@ def _test_plan(test_obj, plan, n_resamples=0):
 
     fp = plan.get_failed_preds()
     _, _, t = plan.get_failed_pred()
-    #
+
     if viewer != None:
         if t < plan.horizon:
             viewer.draw_plan_ts(plan, t)
     import ipdb; ipdb.set_trace()
 
-    # test_obj.assertTrue(plan.satisfied(FAKE_TOL))
+    test_obj.assertTrue(plan.satisfied())
 
 def _test_backtrack_plan(test_obj, plan, n_resamples=0):
     print "testing plan: {}".format(plan.actions)

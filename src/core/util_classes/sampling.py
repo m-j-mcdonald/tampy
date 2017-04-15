@@ -1,6 +1,7 @@
+from collections import OrderedDict
 from core.util_classes.viewer import OpenRAVEViewer
 from core.util_classes.openrave_body import OpenRAVEBody
-from openravepy import matrixFromAxisAngle, IkParameterization, IkParameterizationType, IkFilterOptions
+from openravepy import matrixFromAxisAngle, IkParameterization, IkParameterizationType, IkFilterOptions, databases, CollisionReport
 from sco.expr import Expr
 import math
 import numpy as np
@@ -84,17 +85,44 @@ def closer_joint_angles(pos,seed):
 #         arm_pose[i] = closer_ang(pos[i],seed[i],0)
 #     return arm_pose
 
+def closest_arm_pose(arm_poses, cur_arm_pose):
+    """
+        Given a list of possible arm poses, select the one with the least displacement from current arm pose
+    """
+    min_change = np.inf
+    chosen_arm_pose = None
+    for arm_pose in arm_poses:
+        change = sum((arm_pose - cur_arm_pose)**2)
+        if change < min_change:
+            chosen_arm_pose = arm_pose
+            min_change = change
+    return chosen_arm_pose
+
 def get_torso_arm_ik(robot_body, target_trans, old_arm_pose=None):
     manip = robot_body.env_body.GetManipulator('rightarm_torso')
     iktype = IkParameterizationType.Transform6D
 
-    solution = manip.FindIKSolution(IkParameterization(target_trans, iktype),IkFilterOptions.CheckEnvCollisions)
-    if solution is None:
-        return None, None
-    torso_pose, arm_pose = get_torso_and_arm_pose_from_ik_soln(solution)
-    if old_arm_pose is not None:
-        arm_pose = closer_joint_angles(arm_pose, old_arm_pose)
-    return torso_pose, arm_pose
+    # robot_body.env_body.SetActiveManipulator('rightarm_torso')
+    # ikmodel = databases.inversekinematics.InverseKinematicsModel(
+    #         robot_body.env_body, iktype=iktype)
+    # if not ikmodel.load():
+    #     ikmodel.autogenerate()
+
+    solutions = manip.FindIKSolutions(IkParameterization(target_trans, iktype),IkFilterOptions.CheckEnvCollisions)
+    if len(solutions) == 0:
+        # report = CollisionReport()
+        # import ipdb; ipdb.set_trace()
+        return (None, None)
+
+    closest_pose = closest_arm_pose(solutions, robot_body.env_body.GetActiveDOFValues()[manip.GetArmIndices()])
+    return closest_pose[:1], closest_pose[1:]
+
+    # if solutions is None:
+    #     return None, None
+    # torso_pose, arm_pose = get_torso_and_arm_pose_from_ik_soln(solutions)
+    # if old_arm_pose is not None:
+    #     arm_pose = closer_joint_angles(arm_pose, old_arm_pose)
+    # return torso_pose, arm_pose
 
 def get_col_free_base_pose_around_target(t, plan, target_pose, robot, callback=None, save=False, dist=DEFAULT_DIST):
     base_pose = None
@@ -103,7 +131,7 @@ def get_col_free_base_pose_around_target(t, plan, target_pose, robot, callback=N
         base_pose = sample_base_pose(target_pose, base_pose_seed=old_base_pose, dist=dist)
         robot.pose[:, t] = base_pose
         if callback is not None: callback()
-        _, collision_preds = plan.get_param('RCollides', 1, negated=True, return_preds=True)
+        _, collision_preds = plan.get_param('PR2RCollides', 1, negated=True, return_preds=True)
         # check to ensure collision_preds are correct
 
         collision_free = True
@@ -121,6 +149,7 @@ def get_col_free_base_pose_around_target(t, plan, target_pose, robot, callback=N
 
 def get_col_free_torso_arm_pose(t, pos, rot, robot_param, robot_body,
                                 arm_pose_seed=None, save=False, callback=None):
+
     target_trans = get_ee_transform_from_pose(pos, rot)
 
     # save arm pose and back height
@@ -137,7 +166,7 @@ def get_col_free_torso_arm_pose(t, pos, rot, robot_param, robot_body,
         robot_param.backHeight[:, t] = torso_pose
         if callback is not None:
             trans = OpenRAVEBody.transform_from_obj_pose(pos, rot)
-            callback(trans)
+            # callback(trans)
             # callback(target_trans)
 
     # setting parameter values back
@@ -167,18 +196,18 @@ def get_ee_from_target(targ_pos, targ_rot):
         possible_ee_poses.append((ee_pos, ee_rot))
     return possible_ee_poses
 
-def closest_arm_pose(arm_poses, cur_arm_pose):
-    """
-        Given a list of possible arm poses, select the one with the least change from current arm pose
-    """
-    min_change = np.inf
-    chosen_arm_pose = None
-    for arm_pose in arm_poses:
-        change = sum((arm_pose - cur_arm_poses)**2)
-        if change < min_change:
-            chosen_arm_pose = arm_pose
-            min_change = change
-    return chosen_arm_pose
+# def closest_arm_pose(arm_poses, cur_arm_pose):
+#     """
+#         Given a list of possible arm poses, select the one with the least change from current arm pose
+#     """
+#     min_change = np.inf
+#     chosen_arm_pose = None
+#     for arm_pose in arm_poses:
+#         change = sum((arm_pose - cur_arm_poses)**2)
+#         if change < min_change:
+#             chosen_arm_pose = arm_pose
+#             min_change = change
+#     return chosen_arm_pose
 
 def get_base_poses_around_pos(t, robot, pos, sample_size, dist=DEFAULT_DIST):
     base_poses = []
@@ -230,7 +259,11 @@ def add_to_attr_inds_and_res(t, attr_inds, res, param, attr_name_val_tuples):
 def set_robot_body_to_pred_values(pred, t):
     robot_body = pred._param_to_body[pred.robot]
     robot_body.set_pose(pred.robot.pose[:, t])
-    robot_body.set_dof(pred.robot.backHeight[:, t], pred.robot.lArmPose[:, t], pred.robot.lGripper[:, t], pred.robot.rArmPose[:, t], pred.robot.rGripper[:, t])
+    robot_body.set_dof({"backHeight" : pred.robot.backHeight[:, t], 
+                        "lArmPose" : pred.robot.lArmPose[:, t], 
+                        "lGripper" : pred.robot.lGripper[:, t], 
+                        "rArmPose" : pred.robot.rArmPose[:, t], 
+                        "rGripper" : pred.robot.rGripper[:, t]})
 #Nope
 def plot_transform(env, T, s=0.1):
     """
@@ -263,9 +296,9 @@ def resample_bp_around_target(pred, t, plan, target_pose, dist=OBJ_RING_SAMPLING
 
 def lin_interp_traj(start, end, time_steps):
     assert start.shape == end.shape
-    if time_steps == 0:
-        assert np.allclose(start, end)
-        return start.copy()
+    # if time_steps == 0:
+    #     assert np.allclose(start, end)
+    #     return start.copy()
     rows = start.shape[0]
     traj = np.zeros((rows, time_steps+1))
 
@@ -287,33 +320,33 @@ def ee_reachable_resample(pred, negated, t, plan):
         v.draw_plan_ts(plan, t)
     plot_time_step_callback()
 
-    targets = plan.get_param('GraspValid', 1, {0: pred.ee_pose})
-    assert len(targets) == 1
-    # confirm target is correct
-    target_pose = targets[0].value[:, 0]
     set_robot_body_to_pred_values(pred, t)
+    target_pose, target_rot = pred.ee_pose.value.flatten(), pred.ee_pose.rotation.flatten()
 
     theta = 0
     robot = pred.robot
     robot_body = pred._param_to_body[robot]
+    body = robot_body.env_body
+
     for _ in range(NUM_EEREACHABLE_RESAMPLE_ATTEMPTS):
         # generate collision free base pose
         base_pose = get_col_free_base_pose_around_target(t, plan, target_pose, robot, save=True,
                                                   dist=OBJ_RING_SAMPLING_RADIUS,
                                                   callback=plot_time_step_callback)
+
         if base_pose is None:
             print "we should always be able to sample a collision-free base pose"
-            st()
-        # generate collision free arm pose
-        target_rot = np.array([get_random_theta(), 0, 0])
+            # import ipdb; ipdb.set_trace()
 
+        # generate collision free arm pose
         torso_pose, arm_pose = get_col_free_torso_arm_pose(t, target_pose, target_rot,
                                                            robot, robot_body, save=True,
                                                            arm_pose_seed=None,
                                                            callback=target_trans_callback)
-        st()
+
         if torso_pose is None:
             print "we should be able to find an IK"
+            # import ipdb; ipdb.set_trace()
             continue
 
         # generate approach IK
@@ -326,8 +359,9 @@ def ee_reachable_resample(pred, negated, t, plan):
                                                     robot, robot_body, save=True,
                                                     arm_pose_seed=arm_pose,
                                                     callback=target_trans_callback)
-        st()
+
         if torso_pose_approach is None:
+            # import ipdb; ipdb.set_trace()
             continue
 
         # generate retreat IK
@@ -340,15 +374,15 @@ def ee_reachable_resample(pred, negated, t, plan):
                                                     robot, robot_body, save=True,
                                                     arm_pose_seed=arm_pose,
                                                     callback=target_trans_callback)
-        st()
+
         if torso_pose_retreat is not None:
             break
     else:
         print "we should always be able to sample a collision-free base and arm pose"
-        st()
+        import ipdb; ipdb.set_trace()
 
-    attr_inds = OrderedDict()
-    res = []
+    attr_inds, res = OrderedDict(), []
+
     arm_approach_traj = lin_interp_traj(arm_pose_approach, arm_pose, pred._steps)
     torso_approach_traj = lin_interp_traj(torso_pose_approach, torso_pose, pred._steps)
     base_approach_traj = lin_interp_traj(base_pose, base_pose, pred._steps)
@@ -367,7 +401,6 @@ def ee_reachable_resample(pred, negated, t, plan):
                                       ('backHeight', torso_traj[:, ind]),
                                       ('pose', base_traj[:, ind])]
         add_to_attr_inds_and_res(t+ind-pred._steps, attr_inds, res, pred.robot, robot_attr_name_val_tuples)
-    st()
 
     ee_pose_attr_name_val_tuples = [('value', target_pose),
                                     ('rotation', target_rot)]
@@ -375,6 +408,6 @@ def ee_reachable_resample(pred, negated, t, plan):
     # v.draw_plan_ts(plan, t)
     v.animate_range(plan, (t-pred._steps, t+pred._steps))
     # check that indexes are correct
-    import ipdb; ipdb.set_trace()
+    # import ipdb; ipdb.set_trace()
 
     return np.array(res), attr_inds

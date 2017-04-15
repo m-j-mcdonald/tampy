@@ -18,27 +18,28 @@ BASE_MOVE = 1
 JOINT_MOVE_FACTOR = 10
 TWOARMDIM = 16
 # InGripper Constants
-GRIPPER_OPEN_VALUE = 0.5
-GRIPPER_CLOSE_VALUE = 0.46
+GRIPPER_OPEN_VALUE = 0.528
+GRIPPER_CLOSE_VALUE = 0.5
 # EEReachable Constants
 APPROACH_DIST = 0.05
 RETREAT_DIST = 0.075
 EEREACHABLE_STEPS = 3
 # Collision Constants
-DIST_SAFE = 1e-2
+DIST_SAFE = 0
 COLLISION_TOL = 1e-3
+RCOLLIDES_DSAFE = 1e-3
 #Plan Coefficient
-IN_GRIPPER_COEFF = 1.
+IN_GRIPPER_COEFF = 1e0
 EEREACHABLE_COEFF = 1e0
-EEREACHABLE_OPT_COEFF = 1e3
+EEREACHABLE_OPT_COEFF = 1.3e3
 EEREACHABLE_ROT_OPT_COEFF = 3e2
 INGRIPPER_OPT_COEFF = 3e2
 RCOLLIDES_OPT_COEFF = 1e2
-OBSTRUCTS_OPT_COEFF = 1e2
+OBSTRUCTS_OPT_COEFF = 1e1
 GRASP_VALID_COEFF = 1e1
 
 TABLE_SAMPLING_RADIUS = 2.0
-OBJ_RING_SAMPLING_RADIUS = 0.6
+OBJ_RING_SAMPLING_RADIUS = .6
 
 # Attributes used in pr2 domain. (Tuple to avoid changes to the attr_inds)
 ATTRMAP = {"Robot": (("backHeight", np.array([0], dtype=np.int)),
@@ -258,6 +259,7 @@ class PR2EEReachable(robot_predicates.EEReachable):
     def __init__(self, name, params, expected_param_types, env=None, debug=False, steps=EEREACHABLE_STEPS):
         self.attr_inds = OrderedDict([(params[0], list(ATTRMAP[params[0]._type])),
                                  (params[2], list(ATTRMAP[params[2]._type]))])
+        self.attr_dim = 26
         super(PR2EEReachable, self).__init__(name, params, expected_param_types, env, debug, steps)
 
     def resample(self, negated, t, plan):
@@ -306,13 +308,13 @@ class PR2EEReachable(robot_predicates.EEReachable):
         t = (2*self._steps+1)
         k = 3
 
-        grad = np.zeros((k*t, self._dim*t))
+        grad = np.zeros((k*t, self.attr_dim*t))
         i = 0
         j = 0
         for s in range(start, end+1):
             rel_pt = self.get_rel_pt(s)
-            grad[j:j+k, i:i+self._dim] = self.ee_pose_check_rel_obj(x[i:i+self._dim], rel_pt)[1]
-            i += self._dim
+            grad[j:j+k, i:i+self.attr_dim] = self.ee_pose_check_rel_obj(x[i:i+self.attr_dim], rel_pt)[1]
+            i += self.attr_dim
             j += k
         return grad
 
@@ -321,8 +323,8 @@ class PR2EEReachablePos(PR2EEReachable):
     # EEUnreachable Robot, StartPose, EEPose
 
     def __init__(self, name, params, expected_param_types, env=None, debug=False, steps=EEREACHABLE_STEPS):
-        self.coeff = 1
-        self.opt_coeff = 1
+        self.coeff = EEREACHABLE_COEFF
+        self.opt_coeff = EEREACHABLE_OPT_COEFF
         self.eval_f = self.stacked_f
         self.eval_grad = self.stacked_grad
         self.attr_dim = 26
@@ -332,11 +334,11 @@ class PR2EEReachableRot(PR2EEReachable):
 
     # EEUnreachable Robot, StartPose, EEPose
 
-    def __init__(self, name, params, expected_param_types, env=None, debug=False, steps=EEREACHABLE_STEPS):
+    def __init__(self, name, params, expected_param_types, env=None, debug=False, steps=0):
         self.coeff = EEREACHABLE_COEFF
         self.opt_coeff = EEREACHABLE_ROT_OPT_COEFF
-        self.check_f = lambda x: self.ee_rot_check[0]
-        self.check_grad = lambda x: self.ee_rot_check[1]
+        self.eval_f = lambda x: self.ee_rot_check(x)[0]
+        self.eval_grad = lambda x: self.ee_rot_check(x)[1]
         super(PR2EEReachableRot, self).__init__(name, params, expected_param_types, env, debug, steps)
 
 class PR2Obstructs(robot_predicates.Obstructs):
@@ -404,11 +406,11 @@ class PR2ObstructsHolding(robot_predicates.ObstructsHolding):
                                  (params[4], list(ATTRMAP[params[4]._type]))])
         self.OBSTRUCTS_OPT_COEFF = OBSTRUCTS_OPT_COEFF
         super(PR2ObstructsHolding, self).__init__(name, params, expected_param_types, env, debug)
+        self.dsafe = DIST_SAFE
 
     def resample(self, negated, t, plan):
         target_pose = self.obstruct.pose[:, t]
-        return resample_bp_around_target(self, t, plan, target_pose,
-                                        dist=OBJ_RING_SAMPLING_RADIUS)
+        return resample_bp_around_target(self, t, plan, target_pose, dist=OBJ_RING_SAMPLING_RADIUS)
 
     def set_active_dof_inds(self, robot_body, reset = False):
         robot = robot_body.env_body
@@ -417,13 +419,13 @@ class PR2ObstructsHolding(robot_predicates.ObstructsHolding):
             self.dof_cache = None
         elif reset == False and self.dof_cache == None:
             self.dof_cache = robot.GetActiveDOFIndices()
-            # dof_inds = np.ndarray(0, dtype=np.int)
-            # dof_inds = np.r_[dof_inds, robot.GetJoint("torso_lift_joint").GetDOFIndex()]
-            # dof_inds = np.r_[dof_inds, robot.GetManipulator("leftarm").GetArmIndices()]
-            # dof_inds = np.r_[dof_inds, robot.GetManipulator("leftarm").GetGripperIndices()]
-            # dof_inds = np.r_[dof_inds, robot.GetManipulator("rightarm").GetArmIndices()]
-            # dof_inds = np.r_[dof_inds, robot.GetManipulator("rightarm").GetGripperIndices()]
-            dof_inds = [12]+ list(range(15, 22)) + [22]+ list(range(27, 34)) + [34]
+            dof_inds = np.ndarray(0, dtype=np.int)
+            dof_inds = np.r_[dof_inds, robot.GetJoint("torso_lift_joint").GetDOFIndex()]
+            dof_inds = np.r_[dof_inds, robot.GetManipulator("leftarm").GetArmIndices()]
+            dof_inds = np.r_[dof_inds, robot.GetManipulator("leftarm").GetGripperIndices()]
+            dof_inds = np.r_[dof_inds, robot.GetManipulator("rightarm").GetArmIndices()]
+            dof_inds = np.r_[dof_inds, robot.GetManipulator("rightarm").GetGripperIndices()]
+            # dof_inds = [12]+ list(range(15, 22)) + [22]+ list(range(27, 34)) + [34]
             robot.SetActiveDOFs(
                     dof_inds,
                     DOFAffine.X + DOFAffine.Y + DOFAffine.RotationAxis,
@@ -461,6 +463,7 @@ class PR2RCollides(robot_predicates.RCollides):
         self.attr_inds = OrderedDict([(params[0], list(ATTRMAP[params[0]._type])),
                                  (params[1], list(ATTRMAP[params[1]._type]))])
         super(PR2RCollides, self).__init__(name, params, expected_param_types, env, debug)
+        self.dsafe = RCOLLIDES_DSAFE
 
     def resample(self, negated, t, plan):
         target_pose = self.obstacle.pose[:, t]
