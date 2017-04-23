@@ -55,7 +55,7 @@ class TestCanSolver(unittest.TestCase):
         # self.moveholding = get_plan('../domains/can_domain/can_probs/can_1234_0.prob', ['0: MOVETOHOLDING PR2 ROBOT_INIT_POSE ROBOT_END_POSE CAN0'])
         # self.moveholding = get_plan('../domains/can_domain/can_probs/can_1234_0.prob')
         # self.gen_plan = get_plan('../domains/can_domain/can_probs/can_1234_0.prob')
-        self.grasp_obstructs1 = get_plan('../domains/can_domain/can_probs/can_grasp_1234_1.prob', ['0: GRASP PR2 CAN0 TARGET0 PDP_TARGET0 EE_TARGET0 PDP_TARGET0'])
+        self.grasp_obstructs1 = get_plan('../domains/can_domain/can_probs/pr2_complex_grasp.prob', ['0: GRASP PR2 CAN1 TARGET1 PDP_TARGET0 EE_TARGET0 PDP_TARGET0'])
         # self.grasp_obstructs0 = get_plan('../domains/can_domain/can_probs/can_grasp_1234_0.prob', ['0: GRASP PR2 CAN0 TARGET0 PDP_TARGET0 EE_TARGET0 PDP_TARGET0'])
 
         # self.grasp_obstructs = get_plan('../domains/can_domain/can_probs/can_grasp_1234_4.prob', ['0: GRASP PR2 CAN0 TARGET0 PDP_TARGET0 EE_TARGET0 PDP_TARGET0'])

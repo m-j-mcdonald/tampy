@@ -40,11 +40,8 @@ class TestRobotLLSolver(unittest.TestCase):
             if plan_str is not None:
                 return hls.get_plan(plan_str, domain, problem)
             return hls.solve(abs_problem, domain, problem)
-<<<<<<< HEAD
 
-=======
         self.get_plan = get_plan
->>>>>>> 3f33f6c703a50e1f540a7d622ea14bcb88b9d123
         # Successful Problem
         # self.move_arm_prob = get_plan('../domains/baxter_domain/baxter_probs/baxter_move_arm.prob')
         # self.grab_prob = get_plan('../domains/baxter_domain/baxter_probs/baxter_grasp.prob', ['0: GRASP BAXTER CAN0 TARGET0 PDP_TARGET0 EE_TARGET0 ROBOT_END_POSE'])

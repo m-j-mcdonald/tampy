@@ -248,6 +248,7 @@ def add_to_attr_inds_and_res(t, attr_inds, res, param, attr_name_val_tuples):
         t = 0
     for attr_name, val in attr_name_val_tuples:
         inds = np.where(param._free_attrs[attr_name][:, t])[0]
+        print val
         getattr(param, attr_name)[inds, t] = val[inds]
         res.extend(val[inds].flatten().tolist())
         param_attr_inds.append((attr_name, inds, t))
@@ -290,8 +291,11 @@ def resample_bp_around_target(pred, t, plan, target_pose, dist=OBJ_RING_SAMPLING
     attr_inds = OrderedDict()
     res = []
     robot_attr_name_val_tuples = [('pose', bp)]
-    add_to_attr_inds_and_res(t, attr_inds, res, pred.robot,
-                            robot_attr_name_val_tuples)
+    if bp is None:
+        import ipdb; ipdb.set_trace()
+    else:
+        add_to_attr_inds_and_res(t, attr_inds, res, pred.robot,
+                                robot_attr_name_val_tuples)
     return np.array(res), attr_inds
 
 def lin_interp_traj(start, end, time_steps):
