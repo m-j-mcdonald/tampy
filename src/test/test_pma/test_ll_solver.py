@@ -241,7 +241,7 @@ def _test_plan(test_obj, plan, method='SQP', plot=False, animate=False, verbose=
         if t < plan.horizon:
             viewer.draw_plan_ts(plan, t)
 
-    # import ipdb; ipdb.set_trace()
+    import ipdb; ipdb.set_trace()
     test_obj.assertTrue(plan.satisfied())
 
 
